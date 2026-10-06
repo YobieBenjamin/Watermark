@@ -42,4 +42,4 @@ Watermarked:
 
 > hurry. ""Oh! Mr. Knightley has any evil was now, whether you are a serious and would have been falling her. Captain Benwick, who was to be permitted to rent. Elizabeth was the village does chuse the other in a moment; rather sooner than all the make to begin abusing he, " but in Highbury, was be a different it was the work of their coming Poor but however, to assure her that he had done well, that I have a great pleasure at Randalls. He gave her attitude She could not often are"Now, Elizabeth to Mr. Suckling was always felt how to allay of a little were the liveliest objects of his own her in 
 
-Runtime: 133.0s
+Runtime: 71.9s

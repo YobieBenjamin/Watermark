@@ -42,4 +42,4 @@ Watermarked:
 
 > different have been, because I would take them back again with it. She found, however, that she had always been endeavouring for But if he had come to any such misuse, when you found herself, as usual Very true, " actually Captain Wentworth know how?" " Oh! You will There is such of be, and raising men to sea true, my dear, you know him the executor, on hearing of us think, that they had talked - a Miss Woodhouse, gave him a look forward to dissuade You will stay; and that if you please, my dear papa, who would have done breakfast, of all, and altogether there was no doubt of his life had been
 
-Runtime: 55.0s
+Runtime: 31.8s

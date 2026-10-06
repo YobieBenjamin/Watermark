@@ -1,143 +1,170 @@
-# The Watermark Project: A Narrative with Technical Depth
+# The Watermark Project, With the Technical Details
 
-*Plain English, but with the mechanisms, numbers, and limits spelled out. The non-technical version is [NARRATIVE_PLAIN_ENGLISH.md](NARRATIVE_PLAIN_ENGLISH.md); the formal design notes are [DESIGN.md](DESIGN.md).*
+*Still written to be read easily, but this version names the real mechanisms and pairs each one with a simple analogy, so you can follow both the plain idea and the actual engineering. The no-tech version is [NARRATIVE_PLAIN_ENGLISH.md](NARRATIVE_PLAIN_ENGLISH.md); the formal math is in [DESIGN.md](DESIGN.md) and [GATE.md](GATE.md).*
 
 ---
 
-## 1. Problem statement
+## 1. The problem, and the law behind it
 
-### The regulatory trigger
+A rule in the European Union called the AI Act (Article 50) says this: if your AI makes text, images, audio, or video, you have to mark it so a machine can tell it was made by AI. The rule has been in force since August 2026, with a grace period into December 2026. Very short text, under about 200 words, is let off the hook. Everything longer is supposed to be marked, even when marking is known to be shaky.
 
-Article 50(2) of the EU AI Act requires providers of AI systems that generate text, images, audio, or video to mark their outputs in a machine-readable format and make them detectable as artificially generated. The obligation has applied since 2 August 2026; a July 2026 amendment (the "digital omnibus") gave systems already on the market until 2 December 2026 to comply. The accompanying Code of Practice exempts very short text, defined as under 200 tokens, but otherwise expects marking even where it is known to be unreliable.
+On October 5, 2026, OpenAI announced its answer for text: **textGrain**, a hidden mark baked into the AI's word choices. It is on by default for ChatGPT and its coding tool in Europe, available but **off by default** for companies using OpenAI's programming interface, and its detector is limited to approved researchers for now.
 
-On 5 October 2026 OpenAI published its answer for text: **textGrain**, a statistical watermark embedded in the model's word choices, rolling out by default to ChatGPT and Codex users in the EU, available to API customers worldwide as an opt-in that is off by default, with detector access initially restricted to approved researchers. OpenAI's own figures, at a 1% false-positive target: about 80% detection on 200-token passages, 95% on 400-token psychology passages, roughly 60% on mathematical content, 42–69% across the other official EU languages, and a collapse from 92% to 66% when 10% of words are replaced with synonyms and to 17% at 25%.
+Here is the misconception this project exists to correct. People imagine a text mark as a stamp added after the writing is done. For photos that is often true, because a picture has lots of tiny room to hide a signal. Text has almost none. A sentence only has a little bit of free choice in it, and the single place to spend that freedom is the moment the AI picks each word.
 
-### The misconception
+**Analogy.** A photo is a large field where you can bury a small coin and nobody notices. A sentence is a narrow hallway with almost nowhere to hide anything. The only free space is the split second when the writer decides which word comes next. So every serious text mark lives *inside* the writing step, not on top of the finished text.
 
-The intuitive model of a watermark is post-hoc: generate the content, then stamp it. For images that is often literally true, because pixels have perceptual slack in which to hide a signal. Text has almost none. A sentence carries only a few bits of free choice per word, and the only place to spend them is the moment the model chooses the word. Every production text watermark (Kirchenbauer's green-list scheme, Aaronson's Gumbel-max, Google's SynthID-Text, OpenAI's textGrain) therefore operates **inside the sampling step**. Post-hoc tricks such as zero-width Unicode characters or homoglyph substitution exist, but they die on copy-paste or normalization, and OpenAI explicitly does not use them.
+Three limits follow from that, and none of them is a bug:
 
-### What a watermark cannot do
+1. **The mark says "present," not "exact."** It can tell you the AI helped write these words. It cannot tell you nobody edited them afterward.
+2. **The mark breaks under rewriting.** Change enough words and it is gone.
+3. **The mark needs real choices to hide in.** For things like code or math, where the next token is nearly forced, there is little freedom to tilt, so little signal.
 
-Three gaps follow from the design, and they are not bugs.
+## 2. What we built
 
-1. **It is a presence signal, not an integrity signal.** It says "a keyed sampler influenced these words," never "these are exactly the words." Edit three tokens of a genuine output to flip its meaning and it still detects.
-2. **It is fragile to rewriting.** The keyed values at a position depend on the preceding few tokens, so one edit destroys several scored positions. Paraphrase with any unwatermarked model and the signal is gone. Zhang et al. (2024) proved the general case: given a quality oracle and a perturbation oracle, a random walk removes any watermark while preserving quality.
-3. **It needs entropy.** The signal lives only where the model had a real choice. Code, mathematics, structured output, and deterministic decoding (temperature 0) leave little or nothing to tilt.
+We built an honest, open copy of this kind of system, attacked it with every realistic trick, wrapped it in the extra layers a mark alone can't provide, and then added a sixth layer that uses all of it to control what an AI agent is actually allowed to *do*. Everything runs with one command, offline, on a normal laptop, and checks its own math before printing any result.
 
-## 2. Purpose
+## 3. How the mark is made
 
-The project builds a faithful, open reference implementation of a textGrain-style watermark; attacks it with the full range of realistic manipulations; and wraps it in the two additional layers that cover the gaps above, measuring which layer holds against which attack. Design constraints: one command, no model download, no GPU, no API key, and self-validation of the mathematics before any result is reported. The stated goal is not to beat OpenAI's numbers but to make the behaviour of this class of system inspectable and reproducible.
+### Tilting the word choices with a secret key
 
-## 3. Methodology
+At each step the AI has a list of possible next words, each with a probability. The mark nudges that list using a secret key plus the last few words already written.
 
-### 3.1 Embedding: keyed blocks and an entropy budget
+**The tech:** the key and the recent words are run through a one-way scrambler (HMAC-SHA256) to produce seeds. Those seeds split the whole vocabulary into blocks, build a small table of random "costs," and then solve a balancing problem (optimal transport) that gently shifts probability toward low-cost choices — but only up to a set limit.
 
-At each decoding step the model produces a next-token distribution **P** over the vocabulary, after temperature scaling and nucleus (top-p) truncation. The watermark intervenes as follows.
+**Analogy.** Think of a combination lock whose combination changes with every word, and only the key holder knows the sequence. At each word the lock points to a slightly favored group of words. The writer still picks a normal word; the lock just leans the choice a little.
 
-- **Keyed randomness.** A secret key and the last *L* tokens (the *context window*, default 3) are hashed with HMAC-SHA256 to produce seeds. Everything keyed is a deterministic function of (key, context); the only true randomness left is the sampling itself.
-- **Partition.** The seeds assign every vocabulary token to one of *B* blocks (default 32). Block probabilities are the sums of **P** over each block.
-- **Cost table.** The seeds also produce a *B* × *m* table of Gumbel-distributed costs (default *m* = 16 columns).
-- **Coupling under a budget.** An optimal-transport problem picks a joint distribution over (block, column) whose row sums match the block probabilities and whose column sums are uniform, favouring low-cost pairs, subject to a penalty on the Kullback–Leibler divergence from independence. That divergence equals the average sampling entropy removed, so a single parameter β (the *entropy budget*, default 0.5) states directly what fraction of the model's randomness the watermark may consume. The solver is log-domain Sinkhorn with a multiplicative update on the regularisation strength (the report's Algorithm A.1) and a marginal-correction step so the marginals are exact.
-- **Sampling.** The key selects a column *J*; the token is sampled from the column's conditional block law, and within the chosen block tokens keep their original relative probabilities.
+### The "entropy budget": a dial for how hard to push
 
-Two identities make this scheme honest, and both are checked numerically to 10⁻⁹ in the tests: averaging the watermarked distribution over columns recovers **P** exactly (*unbiasedness*), and the entropy removed equals the KL divergence (*the budget means what it says*). Unlike Gumbel-max, which is deterministic for a fixed key and context and so returns the same answer to the same prompt every time, textGrain retains residual randomness; the harness verifies that the same prompt with the same key yields distinct outputs.
+There is one dial, called the entropy budget. It sets how much of the AI's natural randomness the mark is allowed to use up. Push hard and the mark is easy to detect but the writing gets a little stranger. Push softly and the writing is untouched but the mark is faint.
 
-If a context window recurs within one generation, the position is *masked* (sampled from **P** directly) so keyed values are never reused in a response, and the detector mirrors this by scoring only the first occurrence of each window.
+**Analogy.** It is like adding spice. A little makes the dish recognizable without ruining it. Too much and everyone tastes that something was done to it. The dial lets you choose exactly how much "spice" to add.
 
-### 3.2 Detection: a Gamma test
+Two promises hold, and the code checks both to nine decimal places. First, averaged out, the tilted choices add up to the AI's original list — the mark does not forbid any word, it only leans. Second, the randomness used up is exactly what the dial says. One more promise: ask the same question twice with the same key and you get two different answers, not the same one copied — so the mark does not make the AI boring and repetitive.
 
-For each scored position the detector recomputes the seeds from the key and the observed window, finds the block of the observed token, the keyed column, and the uniform variate *u* behind that cell's cost, and forms the score *Y* = −log(1 − *u*). Under the null hypothesis that the text is independent of the key, *u* is uniform, so *Y* is a unit exponential and the sum over *n* positions is Gamma(*n*, 1). The detector reports a *p*-value, a *z*-score (*S*ₙ − *n*)/√*n*, and the decision at a chosen false-positive rate α. It needs the tokenizer and the key, not the model and not the budget.
+## 4. How checking works
 
-Because an edit at position *t* changes the token at *t* and the windows of the next *L* positions, each edit costs *L* + 1 scored positions. That is why detection falls off a cliff as the fraction of edited words rises, in our curves and in OpenAI's.
+The checker needs only the text and the key — not the AI model itself.
 
-### 3.3 Hardening the detector
+**The tech:** for each word, the checker recomputes which side the keyed coin favored and adds up a score. If the text has nothing to do with the key, those scores follow a known statistical pattern (a Gamma distribution), so the checker can report a precise "chance of a false alarm."
 
-- **Canonicalisation** (NFKC, zero-width removal, a confusables map, typographic quotes and dashes, whitespace) runs before tokenisation. Attacks that change bytes but not glyphs become no-ops.
-- **Localisation**: sliding windows of 120 tokens, each tested against the Gamma null with Bonferroni correction, merged into segments with character offsets. A watermarked paragraph buried in a long human document is found even when the whole-document statistic is diluted below threshold.
+**Analogy.** Imagine you suspect a coin is weighted. You flip it 300 times and tally the results. A fair coin lands near 50-50. If it lands on heads far more often, you can say how surprised you are, in exact numbers. The checker does the same with word choices, and "very surprised" means "this is marked."
 
-### 3.4 Semantic retrieval
+### Why editing breaks it so fast
 
-Every output is split into sentences, embedded, and stored in a FAISS inner-product index. A suspect text is embedded the same way; each candidate source is scored by the mean of its best per-sentence similarities, with coverage and a count of near-identical sentences as tie-breakers so diluted documents still resolve. Because the match is on meaning, this layer survives paraphrase and (with a multilingual embedder) translation. Offline the harness uses a character n-gram hashing embedder, which captures lexical overlap only; a sentence-transformers model is one flag away.
+The favored side at each word depends on the few words right before it. So changing one word scrambles not just that word, but the next few checks too.
 
-### 3.5 Signed registry
+**Analogy.** It is a row of dominoes. Knock one over and several fall with it. That is why swapping a quarter of the words collapses the mark far more than a quarter — each edit takes out its neighbors.
 
-Each output's canonicalised text is hashed with SHA-256 and the hash signed with Ed25519. Verification returns `exact` (hash match, signature valid), `tampered` (no exact match, but retrieval resolves a near original, with the differing spans and the changed-token fraction), or `unknown`. This closes the spoofing gap: a three-token edit still carries the watermark, but it no longer hashes to anything the provider signed, and the diff shows what changed.
+## 5. Making the checker tough
 
-### 3.6 The attack harness
+**Cleanup first (the tech: canonicalization).** Before checking, the system fixes sneaky look-alikes — invisible characters, letters borrowed from other alphabets, curly quotes. **Analogy:** like auto-correcting two spellings of the same word before comparing them, so a cosmetic change can't fool the match.
 
-Thirteen attacks run against every layer: identity (copy-paste); word-processor auto-formatting; zero-width insertion; homoglyph substitution; resampling 10%, 25%, and 50% of tokens from the unwatermarked model (the synonym/paraphrase proxy); random deletion and insertion; truncation to 150 and 80 tokens; dilution inside three times as much human text; and a three-token piggyback edit. With a real model, two more are available: LLM paraphrase and round-trip translation through French. Null calibration uses human text plus *unwatermarked* model text, so the false-positive rate is measured on both kinds of innocent input. Reported metrics: true-positive rate at the analytic and the empirically calibrated threshold, ROC AUC, mean *z* for the naive and hardened detectors, retrieval recall@1, registry verdict shares, a combined "stack attributed" rate, and localisation IoU for the dilution attack.
+**Zoom in on long documents (the tech: sliding-window localization).** The checker slides a window across a long text and tests each chunk, so a marked paragraph buried inside a long human document still gets found. **Analogy:** instead of asking "is this whole book AI?", it reads page by page and points to the AI page.
 
-## 4. Implementation
+## 6. The two extra layers
 
-The repository (`textgrain_ref/`) is about a dozen modules: `prf.py` (HMAC seeds and random-access expansion), `ot.py` (Sinkhorn with budget calibration), `watermark.py` (the sampler and a backend-agnostic decode loop), `canonicalize.py`, `detector.py`, `retrieval.py`, `registry.py`, `attacks.py`, `harness.py`, and `cli.py`, plus two language-model backends.
+### A memory sorted by meaning (the tech: semantic retrieval)
 
-The **toy backend** is a trigram model with interpolated absolute discounting, trained in seconds on two public-domain Jane Austen novels (9,667-token vocabulary). It exists so that the entire pipeline runs offline on one CPU; it produces semi-coherent prose with real entropy, which is all the watermark cares about. The **Hugging Face backend** wraps any causal language model with KV-cached watermarked decoding, chat templates for instruct models, and unwatermarked `paraphrase` and `translate_roundtrip` helpers that play the attacker. Its decode loop is validated by a test that builds a tiny randomly initialised GPT-2 and a locally trained tokenizer, so no download is needed.
+Every output is broken into sentences and turned into number-lists that capture meaning (embeddings), then stored in a fast search index (FAISS). A suspect text is turned into the same kind of number-list and matched by meaning, not by exact words.
 
-Fifteen tests gate every run: PRF determinism and uniformity; OT marginals and budget; the unbiasedness and entropy identities; a Kolmogorov–Smirnov test of 3,000+ null scores against Exp(1); false-positive control on 120 human passages; detection power and wrong-key nulls; output diversity under a fixed key; canonicalisation defeating desync attacks; localisation of a buried span; retrieval recall; registry verdicts and signature tamper-evidence. `./run.sh` creates a virtual environment, installs, runs the tests, and runs the sweep. The full sweep takes about two and a half minutes on one sandbox CPU and 72 seconds on an Apple M4 Max.
+**Analogy.** A library catalog organized by subject, not by the exact title. Even if someone rewrites an AI paragraph completely, the meaning still lands in the same aisle, and the librarian finds the original. This is the only layer that survives a full rewrite or a translation.
 
-Deliberately left as reference-grade: the per-element pseudorandom expansion is splitmix64 seeded by HMAC rather than a block cipher; keys are derived from a seed for reproducibility; the detector, retrieval, and registry endpoints are unauthenticated oracles. The README lists the production replacements.
+### A signed receipt for every output (the tech: hashing + Ed25519 signatures)
 
-## 5. Practical results
+Each output gets a short fingerprint (a SHA-256 hash) that changes completely if even one character changes. The system signs that fingerprint with a private key only it holds (an Ed25519 signature), which anyone can check but nobody can fake.
 
-Reference run: toy backend, 30 samples × 300 tokens per condition, α = 0.01, β = 0.5. Full tables and plots are in `results/`.
+**Analogy.** A wax seal that only one ring can press, stamped over a fingerprint of the exact text. Anyone can look at the seal and confirm it is real. Change three words and the fingerprint no longer matches — and the system can show you exactly which three words changed.
 
-| attack | tokens changed | watermark TPR (naive → hardened) | mean *z* (naive → hardened) | retrieval R@1 | registry verdict |
-|---|---|---|---|---|---|
-| copy-paste | 0% | 100% → 100% | 26.9 → 26.9 | 100% | exact |
-| word-processor auto-format | 0% | 100% → 100% | 24.4 → 26.9 | 100% | exact |
-| zero-width characters | 0% | 100% → 100% | 5.3 → 26.9 | 100% | exact |
-| homoglyphs | 0% | 100% → 100% | 8.4 → 26.9 | 100% | exact |
-| resample 10% of tokens | 16% | 100% → 100% | 17.8 | 100% | tampered |
-| resample 25% | 34% | 100% → 100% | 8.7 | 100% | tampered |
-| resample 50% | 73% | 20% → 20% | 1.6 | 100% | unknown |
-| delete 10% / insert 10% | 15% / 13% | 100% | 18.6 / 18.9 | 100% | tampered |
-| truncate to 150 / 80 tokens | — | 100% | 19.3 / 13.8 | 100% | tampered |
-| dilute in 3× human text | — | 100% | 17.9 | 100% | tampered; localisation IoU 0.73, found 100% |
-| piggyback edit (3 tokens) | 1% | 100% → 100% | 25.9 | 100% | tampered, diff returned |
+Together: the mark says *the AI helped write this*; the memory says *which original this came from, even after rewriting*; the receipt says *whether it's exact, and if not, what changed*.
 
-Null calibration on 60 innocent passages: one false positive (1.7%, consistent with α = 1% in a sample that size). The registry returned `unknown` for all human text. The achieved entropy budget averaged 0.464 of the requested 0.5. Same prompt and same key produced distinct outputs 100% of the time. A second run at β = 0.2 behaves the same way with a weaker signal (copy-paste *z* = 19.7; the naive detector's recall on the zero-width attack drops to 83% while the hardened detector stays at 100%). The run was regenerated on an Apple M4 Max under Python 3.13 and reproduced every figure exactly.
+## 7. Attacking it, and what we found
 
-Reading the table:
+We ran thirteen attacks against every layer: copy-paste; word-processor auto-formatting; invisible characters; look-alike letters; swapping 10%, 25%, and half of the words; deleting and adding words; cutting the text short; hiding the text inside three times as much human writing; and a three-word edit to fake a claim. With a real AI plugged in, two more: full rewrite and round-trip translation.
 
-- Copy-paste, through any number of editors, is a non-event; the registry additionally returns `exact`.
-- Tokenizer-desync attacks cost a naive detector three quarters of its signal with zero visible change and cost the hardened detector nothing.
-- Rewriting is the attack that works. At 50% resampling the watermark is near chance, and only retrieval still identifies the source.
-- Dilution defeats the passage-level test's intent but not localisation.
-- Piggyback spoofing defeats the watermark *by design* (the text is still "detected") and is caught by the integrity layer, which names the changed span.
+Main run, thirty samples of about 300 words, false-alarm dial set to one in a hundred:
 
-What transfers and what does not: the toy model has roughly 3.7 nats of entropy per token, two to three times an instruction-tuned LLM at temperature 1 with top-p, so absolute detection rates here are optimistic. OpenAI's reported 80% at 200 tokens and 17% after 25% synonym replacement are the realistic regime. The ordering of attacks, the value of canonicalisation, the behaviour of localisation, and the retrieval and registry verdicts are properties of the architecture, not of the model, and transfer directly. The HF backend exists to produce the real-model numbers.
+- **Copy-paste, reformatting, printing, retyping:** mark fully intact; receipt says *exact*.
+- **Invisible characters and look-alike letters:** signal dropped from 27 to 5–8 for a basic checker; the cleanup step put it back to 27. Zero visible change to the text, zero damage to the tough checker.
+- **Rewriting:** 10% of words swapped, mark still strong; 25%, weakened; 50%, down to catching one text in five. The meaning-memory found the original every single time anyway.
+- **Hiding inside human text:** still flagged, and the hidden section located.
+- **Three-word fake:** still "detected" as AI — which is the danger, because it lets a forger put words in the AI's mouth. The receipt caught it every time and named the changed words.
+- **False alarms:** one wrong call out of sixty innocent texts, right where the one-in-a-hundred dial predicts.
+- **Rerun on a MacBook:** identical numbers.
 
-## 6. Impact
+**One honest limit.** Our stand-in writing model is more random than a real chatbot, so our marks look stronger than real ones would. OpenAI's own numbers are the realistic range: about 80% found at 200 words, 17% after a quarter of the words are swapped. The *order* of what works and what fails is the same in our tests and theirs; only the exact percentages differ. The order is a property of the design, so it carries over; the percentages depend on the model.
 
-**On how provenance systems should be built.** The results draw a layer map: the watermark covers copy-paste and light edits; canonicalisation covers desync tricks for free; localisation covers dilution; retrieval covers rewriting and translation and is the only layer that does; the signed registry covers integrity and is the only layer that does. A provider deploying a watermark alone has deployed a compliance artefact that catches lazy misuse. A provider deploying all four layers can turn "watermark present" into attribution with tamper localisation.
+## 8. The sixth layer: the execution gate
 
-**On how verdicts should be read.** Absence of a watermark is not evidence of human authorship: the text may be short, rewritten, translated, from an unwatermarked model, or from a provider whose mark was off. Presence of a watermark is not evidence that the text is unedited. And the false-positive arithmetic is unforgiving: at α = 1%, scanning a million human documents produces ten thousand false accusations. Any use of a detector in a decision about a person needs an empirically calibrated operating point for that language and domain, and the registry and retrieval verdicts alongside the watermark one.
+The first five layers answer questions about text *after* it exists. The sixth layer asks a different question at a more useful moment: **what has entered this session, and is this AI allowed to take this action right now?**
 
-**On the regulatory design.** Article 50 obliges marking; it does not define what "detectable" must mean in the hands of a teacher or an editor. OpenAI's choice to gate its detector is defensible as oracle hygiene and sits in tension with the Code of Practice's access expectations for regulators, media, researchers, and civil society. The API opt-in shifts the obligation to integrators: under the Commission's guidelines, a company that ships a product on an upstream model under its own name is itself a provider, and leaving the default in place means it cannot rely on the upstream mark. Nothing technical closes the coverage gap left by open-weights models; that is a policy question.
+### Labeling inputs and tracking "taint"
 
-**On research.** The harness is a common yardstick. A new watermark scheme is a drop-in replacement for one method (`TextGrainSampler.distribution`) and one scoring function; a new attack is one function and one line in the sweep. Watermark-stealing and detector-oracle attacks are the two notable omissions, left as extension points because they need either tens of thousands of queries or detector access, which is precisely what gating is meant to make expensive.
+Before the AI acts on anything it read, the first few layers label that content. The label is a level, from clean to clearly hostile:
 
-**The bottom line.** A text watermark is a keyed bias in word choice. It is self-synchronising, so copying and reformatting preserve it; it is context-hashed, so every edit costs several positions and rewriting erases it; and it is zero-bit, so forging around it is cheap. These are properties of the whole class, not of any vendor's implementation. The durable design is not a stronger mark but a stack: a watermark for presence, retrieval for meaning, a signed registry for integrity, and calibration discipline for the verdicts. This repository is a working, reproducible instance of that stack.
+- **0, verified** — the owner signed this themselves.
+- **1, unverified** — plain text we can't vouch for.
+- **2, self-generated** — our own earlier output (which means the AI may be talking to itself in a loop).
+- **3, tampered or faked** — a doctored copy of our work, or something marked with our key that was never on our books.
 
-## Layer 6: the execution gate
+**The tech:** the session's "taint" is simply the worst level that has entered it so far, tracked by the gate, not by the AI.
 
-The forensic layers become a runtime control by moving the question from "where did
-this text come from?" to "what has entered this session, and may this session now do
-that?". Every content item returned by a read tool is labelled by the hardened detector,
-the signed registry and the retrieval index before the model sees it; the label is a
-provenance level (verified 0 · unverified 1 · self-generated 2 · tampered or
-unregistered-watermark 3) and the session's taint is the maximum so far. Every tool call
-arrives as a hash-linked chain of Ed25519 signatures — root over deployment (which pins
-the policy hash and the gate's measurement), deployment over session (which pins the
-principal), session over call — and a deterministic gate verifies the chain, rejects
-replays and out-of-order calls, evaluates a hash-pinned policy (allowlists, argument
-bounds, per-session budgets, an effect × taint matrix, thresholds on advisory signals
-from external sensors), signs and appends its decision to a hash-chained log, and only
-then executes. Irreversible actions ALLOW at level 0, HOLD at 1 (one principal signature
-over the call hash releases them), DENY at 2 and above; the matrix is arranged so that
-the failure of any single text layer degrades to HOLD, never to ALLOW. Twenty-four
-scenarios with stated expected verdicts, a side-effect ledger audited against signed
-ALLOWs, a re-verifiable log, a run behind a process boundary, and one documented gap (a
-copied software session key) make up the reference run. The hardware mapping — which
-keys, counters, measurements and log heads belong in a TPM, HSM or TEE and why the
-interfaces do not change — is in `GATE.md` §6.
+**Analogy.** A kitchen. The moment raw chicken touches a counter, that counter is contaminated until it is cleaned, no matter what the cook claims. The gate tracks contamination for the whole session and does not take the cook's word for it.
+
+A fixed rulebook (the tech: a hash-pinned policy) then decides what a contaminated session may still do. Actions that can't be undone — moving money, deleting files — are allowed only on clean, signed input; they pause for a human on merely unverifiable input; and they are refused outright on anything that looks like doctored machine output. The rulebook is arranged so that if the text mark fails, the worst that happens is a pause for a human — never an automatic yes.
+
+### Proving where each action came from (the tech: a signature chain)
+
+Every action the AI wants to take arrives wrapped in a chain of signatures, one inside the next:
+
+- a **root** key (kept in a safe) signs off on the whole deployment, and locks in the rulebook and the exact version of the gate's own code;
+- the deployment signs off on each **session**, naming the responsible person;
+- the session signs each individual **action request**.
+
+Each link also carries a fingerprint of the link before it, so the chain can't be cut apart or rearranged.
+
+**Analogy.** Nested permission slips. The principal signs a slip for the teacher; the teacher signs a slip for the field trip; each student's slip names the trip. If any slip is missing, forged, or stapled to the wrong trip, the whole thing is refused. This is also the part a plain watermark can never do: it attributes the *action* to a named person and deployment, not just the text to a key.
+
+### The rulebook, the receipt log, and the human
+
+The gate checks the chain, blocks repeats and out-of-order requests, applies the rulebook, and only then lets the action run. When the rulebook says "pause," a human releases that one action with a single signature — the one place a person is in the loop, and it is a signature on one specific action, not a vague approval.
+
+Every decision is signed by the gate and added to a log where each entry carries a fingerprint of the one before it (the tech: a hash-chained, signed log).
+
+**Analogy.** A ledger with numbered pages, where each page copies the previous page's fingerprint at the top. Tear out or rewrite a page and every page after it stops matching. You can prove, later, that the history was not touched.
+
+### AI as sensor, never as judge
+
+This is the heart of the design, and it answers a real worry: you can't trust an AI to keep an AI safe. So nothing inside the gate is an AI. Every step is a signature check, a fingerprint match, or a table lookup.
+
+The gate still *uses* AI — as sensors, never as the judge. A safety team's warning systems (a lie-detector-style probe, an odd-behavior monitor) feed the gate a score, and the rulebook turns a high score into "pause and ask a human" or, at an extreme, "refuse." A sensor can never override a signature failure and can never force an action through.
+
+**Analogy.** Smoke detectors are wired to sound an alarm and maybe shut a fire door. They are not wired to the building's master controls. A faulty detector can cause a false alarm; it cannot open the vault. The AI-based sensors sit in the detector seat, never the vault-control seat.
+
+In the other direction, every decision the gate makes is written out as a named signal. That stream of signals — actions with proven origins, the inputs that preceded them, and what the rulebook did — is exactly the labeled history a safety team needs to study warning signs. You can only learn "what tends to come right before a bad action" if you have a trustworthy record of actions and their origins, which is what the gate produces.
+
+### What we tested
+
+Twenty-four situations, each with the right answer written down first. The gate got all twenty-four. It allowed the owner's signed payment, blocked a payment hidden inside a doctored document, paused on a payment based on unverifiable text until a human signed, and refused every forged, replayed, edited, or spliced command, plus any attempt to swap the rulebook or run a modified version of the gate. Every action that actually happened traces back to a signed yes, and the receipt log re-checks cleanly after the run. The same gate also ran as a separate program behind a wall, so the AI's side never even held the gate's key.
+
+### The one honest gap
+
+If an attacker gets onto the machine and copies a secret key, the gate cannot tell the copy from the original, and it will let the attacker through. We report that plainly rather than hide it. The real signer's internal counter did not move for the forged action, which is the clue special hardware would turn into proof.
+
+## 9. What belongs in hardware
+
+The claim "AI safety has to live outside the model, and probably in hardware" turns, in this project, into a concrete list. Each item has a software stand-in in the code today and a hardware home for a real deployment.
+
+- **Secret keys** → a locked chip that signs things but never hands the key out (a TPM or HSM). This closes the copied-key gap above. **Analogy:** a safe with a mail slot — you can drop something in to be stamped, but you can't reach the stamp.
+- **A count of how many times a key has signed** → a counter in that chip that can't be wound back. **Analogy:** an odometer you can't roll back, so nobody can hide extra uses.
+- **The gate's own code version** → a tamper-evident measurement the chip takes of the code, locked into the permission chain, so the gate can't lie about which version it is. **Analogy:** a factory seal on a part — if the seal is broken, you know the part was swapped.
+- **The receipt log** → anchored to that same hardware so history can't be quietly rewritten.
+- **The wall between the AI and the gate** → ideally a separate secure chip or device, not just a separate program.
+
+What hardware buys: keys that can't be copied, code that can't lie about itself, a history that can't be rewritten, counters that can't be wound back. What it does **not** buy: a sensible rulebook, good judgment about meaning, or protection against a properly-signed session being fooled by a clever lie. Those stay the job of the rulebook, the pause-for-a-human step, and the sensors — which is exactly why the whole thing is built in layers instead of resting on any single trick.
+
+## 10. The bottom line
+
+A text mark is a keyed lean in word choice. Copying and reformatting keep it, because it is in the words. Every edit takes out its neighbors, so rewriting erases it. And because it only says "present," faking around it is cheap. Those are facts about the whole class of marks, not any one company's version.
+
+The durable answer is not a stronger mark. It is a stack: a mark for *present*, a meaning-memory for *which original*, a signed receipt for *exact or changed*, honest math for the verdicts — and, on top, a gate outside the AI that decides what the AI is actually allowed to do, with the most trust-critical parts kept in hardware. This repository is a working, self-checking copy of that whole stack.

@@ -135,3 +135,17 @@ instruction-tuned LLM at temperature 1 with top-p. Absolute detection rates here
 therefore optimistic; the *ordering* of attacks, the hardening effect, the dilution
 localisation and the registry/retrieval behaviour transfer directly. Run the `hf`
 backend to get numbers for a real model.
+
+## 7. Execution gate (`textgrain_ref/gate/`)
+
+Layers 1–4 become the input oracle of a deterministic verifier that sits between the
+model and every tool. Chain: four Ed25519-signed, hash-linked links (deployment, session,
+call, optional approval) over canonical JSON with a domain separator; the deployment link
+pins the policy hash and the gate's own measurement. Taint: the maximum provenance level
+(verified 0 · unverified 1 · self-generated 2 · tampered / unregistered watermark 3)
+that has entered the session through a read tool, tracked gate-side. Policy: JSON,
+hash-pinned, evaluated as allowlist → bounds → budgets → taint matrix → advisory
+thresholds, strongest verdict wins; HOLD is approvable by one principal signature over
+the call hash, DENY is not. Log: hash-chained SQLite rows signed by the gate key; the
+executor runs only under a verified signed ALLOW record. Full treatment, including what
+each signature proves and the hardware mapping: `GATE.md`.

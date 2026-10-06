@@ -5,6 +5,7 @@
 #   ./run.sh toy --quick          # smoke sweep, under a minute
 #   ./run.sh hf --model Qwen/Qwen2.5-1.5B-Instruct \
 #              --embedder paraphrase-multilingual-MiniLM-L12-v2 --llm-attacks --n 40 --tokens 400
+#   ./run.sh gate                 # layer 6: execution-gate scenario sweep (offline, ~20 s after install)
 #
 # Everything after the backend name is passed to `textgrain-ref demo`.
 # Requires Python >= 3.10; the newest python3.x on PATH is used unless PYTHON is set.
@@ -38,6 +39,13 @@ else
 fi
 echo "== self-validation =="
 python -m pytest -q tests
+if [ "$BACKEND" = "gate" ]; then
+  echo "== execution gate (layer 6) =="
+  OUT="results/gate-$(date +%Y%m%d-%H%M%S)"
+  python -m textgrain_ref.cli gate --out "$OUT" "$@"
+  echo "report: $OUT/report.md   signals: $OUT/signals.jsonl   decision log: $OUT/decisions.sqlite (verify: textgrain-ref gate --verify-log $OUT)"
+  exit 0
+fi
 echo "== evaluation (backend: $BACKEND) =="
 OUT="results/${BACKEND}-$(date +%Y%m%d-%H%M%S)"
 python -m textgrain_ref.cli demo --backend "$BACKEND" --out "$OUT" "$@"

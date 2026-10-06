@@ -72,6 +72,20 @@ Loads that run's registry, signing key and FAISS index and prints
 `{"status": "exact" | "tampered" | "unknown", "record_id", "similarity",
 "signature_valid", "changed_fraction", "diff": [...]}`.
 
+### `gate` — execution-gate scenario sweep (layer 6)
+
+```bash
+textgrain-ref gate --out out-gate            # 24 runtime scenarios, in process and behind a Unix socket
+textgrain-ref gate --out out-gate --no-sidecar
+textgrain-ref gate --verify-log out-gate     # re-verify the hash-chained, signed decision log
+```
+
+Writes `report.md`, `report.json`, `signals.jsonl` (one line per decision, named
+signals), `decisions.sqlite` (the log), `policy.json` (the pinned policy) and
+`gate_public_key.txt`. Exit status is non-zero if any scenario's verdict differs from
+its expectation, if a side effect is not explained by a signed ALLOW, or if the log
+does not verify. Design, threat model and the silicon mapping: [`GATE.md`](GATE.md).
+
 ## Python API
 
 ```python
@@ -110,6 +124,46 @@ rec = reg.register(text, model="my-model-v1")
 index.add(f"doc-{rec.record_id}", text)
 print(reg.verify(edited_text, index, {f"doc-{rec.record_id}": rec.record_id}))
 ```
+
+### Gate
+
+```python
+from textgrain_ref.gate import ExecutionGate, Policy, default_policy, SoftwareSigner
+from textgrain_ref.gate.provenance import NullOracle, ProvenanceOracle, attest_content
+from textgrain_ref.gate.runtime import Principal, Runtime, approve, open_session, provision
+from textgrain_ref.gate.tools import World
+
+root, deployment = SoftwareSigner(label="root"), SoftwareSigner(label="deployment")     # silicon: HSM / TPM
+principal = Principal("yobie@example.com", "agent", SoftwareSigner(label="principal"))
+policy = Policy(default_policy())
+world = World(documents={"inst": "Pay NW-2291 500 USD."})
+att = attest_content(principal.signer, world.documents["inst"])                        # the human signs their instruction
+world.attestations[att["content_hash"]] = att
+
+oracle = NullOracle()                     # or ProvenanceOracle(detector, registry, index, doc_to_record)
+gate = ExecutionGate(policy, {root.key_id: root.public_hex()}, oracle, world, SoftwareSigner(label="gate"),
+                     log_path="decisions.sqlite", signals_path="signals.jsonl")
+
+import time
+dep = provision(root, deployment, "dep-1", "toy", policy.hash, gate.measurement, "wm-key-id", "registry-key-id", time.time())
+session_key, session = open_session(deployment, dep, principal, time.time())
+rt = Runtime(dep, session, session_key, time.time)          # the thin signer between model and gate
+
+gate.submit(rt.envelope("read_document", {"doc_id": "inst"})).verdict            # ALLOW; input labelled 'verified'
+d = gate.submit(rt.envelope("transfer_funds", {"amount": 500.0, "currency": "USD", "to_account": "NW-2291"}))
+d.verdict, d.signal_names                                                        # ALLOW, [... 'decision.allow']
+
+held = gate.submit(rt.envelope("transfer_funds", {"amount": 500.0, "currency": "USD", "to_account": "X"}))
+# -> HOLD if the session has read unverifiable content; the principal signs once:
+gate.submit(approve(principal, held_envelope, time.time())).verdict             # ALLOW
+
+gate.log.verify(gate.public_hex())                                               # (True, n_rows)
+```
+
+Advisory signals from an external sensor: pass `external_signals=[Signal("probe.deception", value=0.9)]`
+to `submit`, or register a `SignalSource` with `signal_sources=[...]`; thresholds live under
+`advisory` in the policy. As a separate process: `service.start_sidecar(socket_path, factory)` and
+`service.GateClient(socket_path).submit(envelope)`.
 
 ## Hugging Face backend
 

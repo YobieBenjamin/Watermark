@@ -76,3 +76,14 @@ default in its API, or whose model weights are public has by that choice placed 
 generated text outside the mark. Retrieval only helps the provider who generated the
 text. No technical layer here closes that gap; interoperable detection standards and
 coverage obligations do.
+
+## 4. The same attacks, as actions
+
+Everything above is about a document after it exists. An agent that *acts* on documents
+turns each row into a runtime event: the piggyback spoof becomes an injected instruction
+inside an edited copy of a genuine output; regeneration becomes a paraphrased injection
+that the watermark no longer sees; and a new family appears that has no text analogue —
+forged, replayed, spliced or stripped tool calls, a modified policy, a modified gate, a
+copy of the model running somewhere it was never provisioned. `docs/GATE.md` §4 ranks
+those, states which signal names each and which verdict the gate must return, and
+`./run.sh gate` fails if it returns anything else.

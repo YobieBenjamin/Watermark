@@ -11,4 +11,7 @@ results/**/registry.sqlite
 results/**/retrieval_index/
 results/**/registry_signing_key.pem
 results/**/*.log
+results/**/decisions.sqlite
+results/**/sidecar/
+*.sock
 .pytest_cache/

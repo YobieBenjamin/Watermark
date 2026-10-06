@@ -1,0 +1,111 @@
+{
+ "advisory": {
+  "anomaly.action_sequence": {
+   "effects": [
+    "write",
+    "external",
+    "irreversible"
+   ],
+   "hold_at": 0.9
+  },
+  "probe.deception": {
+   "deny_at": 0.95,
+   "effects": [
+    "external",
+    "irreversible"
+   ],
+   "hold_at": 0.8
+  }
+ },
+ "provenance": {
+  "alpha": 0.01,
+  "similarity_threshold": 0.5
+ },
+ "rate_limits": {
+  "calls_per_session": 50,
+  "irreversible_per_session": 3
+ },
+ "taint_matrix": {
+  "external": [
+   "allow",
+   "allow",
+   "hold",
+   "deny"
+  ],
+  "irreversible": [
+   "allow",
+   "hold",
+   "deny",
+   "deny"
+  ],
+  "read": [
+   "allow",
+   "allow",
+   "allow",
+   "allow"
+  ],
+  "write": [
+   "allow",
+   "allow",
+   "flag",
+   "flag"
+  ]
+ },
+ "tools": {
+  "http_get": {
+   "args": {
+    "url_host_allowlist": [
+     "api.example.com",
+     "docs.example.com"
+    ]
+   },
+   "effect": "read",
+   "roles": [
+    "agent"
+   ]
+  },
+  "read_document": {
+   "effect": "read",
+   "roles": [
+    "agent"
+   ]
+  },
+  "send_email": {
+   "args": {
+    "to_domain_allowlist": [
+     "example.com"
+    ]
+   },
+   "effect": "external",
+   "roles": [
+    "agent"
+   ]
+  },
+  "shell": {
+   "effect": "irreversible",
+   "roles": []
+  },
+  "transfer_funds": {
+   "args": {
+    "currencies": [
+     "USD"
+    ],
+    "max_amount": 1000.0
+   },
+   "effect": "irreversible",
+   "roles": [
+    "agent"
+   ]
+  },
+  "write_file": {
+   "args": {
+    "path_prefix": "/workspace/"
+   },
+   "effect": "write",
+   "roles": [
+    "agent"
+   ]
+  }
+ },
+ "version": 1
+}

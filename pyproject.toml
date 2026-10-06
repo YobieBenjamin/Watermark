@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "textgrain-ref"
+version = "0.1.0"
+description = "Reference stack: textGrain-style LLM watermark, hardened detector, semantic retrieval, signed registry, attack harness"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "faiss-cpu>=1.7.4",
+  "cryptography>=41",
+  "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+hf = ["torch>=2.1", "transformers>=4.40", "sentence-transformers>=2.7", "accelerate>=0.30"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+textgrain-ref = "textgrain_ref.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["textgrain_ref*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

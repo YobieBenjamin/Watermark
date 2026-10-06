@@ -1,0 +1,78 @@
+# Threat model
+
+This stack exists because a decoding-time watermark answers one question ("did a
+keyed sampler influence these words?") and the questions people actually ask are
+different ("is this AI text?", "is this *our* text?", "was it edited?", "which part?").
+Each layer covers one of the gaps. This document ranks the attacks against a
+textGrain-style watermark, says who uses them, and maps each to the layer that holds.
+
+## 1. Why edits are expensive for the watermark
+
+The keyed values at position *t* are a function of the `context_window` (L) tokens
+before *t*. Changing the token at *t* therefore destroys the score at *t* **and** the
+scores at *t+1 … t+L*, because their windows no longer match what generation saw. One
+edit costs L+1 scored positions, not one. Replacing a quarter of the words with L = 3
+desynchronises most of the passage; OpenAI's own figures (10 % synonyms: 92 % → 66 %
+detection; 25 %: 17 %) have exactly this shape, and the harness reproduces the slope
+(`rewrite p=0.10 / 0.25 / 0.50` rows in `results/`).
+
+This is a property of every context-hashed scheme (KGW, Gumbel-max, SynthID-Text,
+textGrain), not a bug. Longer windows make the key harder to steal and the mark
+easier to break; shorter windows do the reverse.
+
+## 2. Attacks, ranked
+
+| Tier | Attack | Actor | Cost | Effect on watermark | Layer that holds |
+|---|---|---|---|---|---|
+| 1 | **Regeneration**: paraphrase or round-trip translation with an *unwatermarked* model | student, content farm, influence op | cents | detection → chance | semantic retrieval |
+| 1 | **Piggyback spoofing**: minimal edit of a genuine output (flip a negation, change a number) | anyone who wants the provider blamed | nothing | still detected (that is the attack) | signed registry (`tampered` + diff) |
+| 2 | **Tokenizer desync**: homoglyphs, zero-width characters, typographic auto-formatting | mildly technical evader | a script | same as paraphrase, no visible change | canonicalisation in the detector |
+| 2 | **Entropy starvation**: constrained tasks, code, structured output, temperature → 0 | anyone with API parameters | a prompt | little or no signal to embed | retrieval only |
+| 2 | **Chunking / dilution**: stay under the length threshold, or bury the output in human text | evader | nothing | passage test never clears threshold | sliding-window localisation |
+| 3 | **Watermark stealing**: learn the keyed block preferences per frequent context, then forge or scrub | well-resourced adversary | thousands of outputs | forgery or guided removal | long context window, modest β, no detector oracle |
+| 3 | **Detector hill-climbing**: edit until the oracle says "undetected" | adversary with detector access | oracle queries | minimal-edit evasion | gating, rate limits, banded verdicts |
+| 3 | **Key compromise** | insider | — | total: perfect scrub and perfect forgery | HSM, per-model keys, versioned rotation |
+
+The viable attack for an evader is Tier-1 regeneration. The viable attack for a
+framer is piggyback spoofing. Both are cheap, and no change to the watermark fixes
+either: Zhang et al. (2024) show that with a quality oracle and a perturbation oracle
+a random walk removes *any* watermark while preserving quality, and a zero-bit mark
+cannot bind content integrity by construction.
+
+## 3. What each layer does and does not cover
+
+**Watermark (hardened detector).** Copy-paste, format conversion, retyping, OCR,
+light edits, dilution (via localisation), desync attacks (via canonicalisation).
+Does not cover rewriting, translation, deterministic decoding, low-entropy domains,
+text from unwatermarked models.
+
+**Semantic retrieval.** Rewriting and translation (with a multilingual embedder),
+low-entropy and deterministic outputs (the provider still has the original). Does
+not cover text the provider never generated, and its query endpoint is an oracle.
+Cost: one vector per sentence of every output; privacy obligations.
+
+**Signed registry.** Integrity: `exact` means the provider signed this exact
+canonical text; `tampered` returns the nearest original and the changed spans. Does
+not cover text that was rewritten so far that retrieval cannot find it (then both
+layers say `unknown`, which is the honest answer).
+
+**Key and oracle hygiene.** Makes Tier-3 attacks expensive rather than impossible.
+
+## 4. False positives
+
+At α = 1 %, a detector run over a million human documents flags ten thousand of them.
+The analytic null (Exp(1) scores, Gamma(n,1) sum) assumes independence across
+contexts; the harness checks it with a KS test on human text and reports the realised
+FPR and an empirical threshold. Treat any operating point as domain- and
+language-specific: calibrate on a large null sample before acting on a verdict, and
+never present "watermark absent" as evidence of human authorship. Short texts (under
+~200 tokens) carry too little signal for either direction.
+
+## 5. Coverage is a policy problem
+
+Everything above assumes the text was generated by a watermarking provider with the
+watermark on. A provider that scopes the mark geographically, leaves it off by
+default in its API, or whose model weights are public has by that choice placed most
+generated text outside the mark. Retrieval only helps the provider who generated the
+text. No technical layer here closes that gap; interoperable detection standards and
+coverage obligations do.

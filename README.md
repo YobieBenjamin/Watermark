@@ -110,6 +110,10 @@ floating-point differences between machines).
 
 Documentation:
 
+* [`docs/NARRATIVE_PLAIN_ENGLISH.md`](docs/NARRATIVE_PLAIN_ENGLISH.md) — the whole project
+  explained for a general reader: problem, purpose, method, results, impact.
+* [`docs/NARRATIVE_TECHNICAL.md`](docs/NARRATIVE_TECHNICAL.md) — the same narrative with the
+  mechanisms, numbers and limits spelled out.
 * [`docs/DESIGN.md`](docs/DESIGN.md) — the mathematics of embedding, detection,
   hardening and the two extra layers, and what each test checks.
 * [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) — attacks ranked by cost, who uses
@@ -138,7 +142,7 @@ tests/test_stack.py   15 tests: PRF, OT marginals/budget, unbiasedness + entropy
                       canonicalisation vs desync attacks, localisation, retrieval, registry, signatures
 data/             public-domain Austen texts for the toy LM and the human-text pool (fetch_corpus.sh)
 results/          committed reports and plots from the two reference runs (+ reproduce.sh)
-docs/             DESIGN.md, THREAT_MODEL.md, USAGE.md
+docs/             NARRATIVE_PLAIN_ENGLISH.md, NARRATIVE_TECHNICAL.md, DESIGN.md, THREAT_MODEL.md, USAGE.md
 ```
 
 ## Production notes (what a reference implementation leaves out)

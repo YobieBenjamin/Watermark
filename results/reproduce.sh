@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate the two committed reference runs (toy backend, 30 x 300 tokens, beta 0.5 and 0.2).
+# Regenerate the committed reference runs: two toy sweeps (30 x 300 tokens, beta 0.5 and 0.2) and the gate sweep.
 #   bash results/reproduce.sh            # just regenerate
 #   bash results/reproduce.sh --push     # regenerate, then commit and push results/
 # Runs are seeded; numbers reproduce up to floating-point differences between machines.
@@ -19,9 +19,11 @@ python -m pip install -q -e ".[dev]"
 python -m pytest -q tests
 python -m textgrain_ref.cli demo --backend toy --n 30 --tokens 300 --beta 0.5 --out results/toy-beta0.5 > results/toy-beta0.5.log 2>&1
 python -m textgrain_ref.cli demo --backend toy --n 30 --tokens 300 --beta 0.2 --out results/toy-beta0.2 > results/toy-beta0.2.log 2>&1
-echo "regenerated results/toy-beta0.5 and results/toy-beta0.2"
+python -m textgrain_ref.cli gate --out results/gate-reference > results/gate-reference.log 2>&1
+rm -rf results/gate-reference/sidecar results/gate-reference/decisions.sqlite results/gate-reference/registry.sqlite
+echo "regenerated results/toy-beta0.5, results/toy-beta0.2 and results/gate-reference"
 if [ "$PUSH" = 1 ]; then
-  git add results/toy-beta0.5 results/toy-beta0.2
+  git add results/toy-beta0.5 results/toy-beta0.2 results/gate-reference
   git commit -qm "results: regenerate reference runs ($(uname -sm), $(python --version 2>&1))" || echo "nothing to commit"
   git push
 fi

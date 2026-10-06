@@ -97,3 +97,28 @@ One honest caveat: our stand-in model is more "random" in its word choices than 
 **For researchers.** Watermark designs are usually published as papers and compared on different models under different conditions. This project is a shared, reproducible testbed where any new design or attack can be dropped in and measured against the same yardstick.
 
 **The bottom line.** A text watermark is a fingerprint in the words. Copying keeps it. Rewriting erases it. Forging around it is cheap. The only durable defense is not a better fingerprint; it is several different kinds of evidence, each covering what the others cannot.
+
+## The sixth layer: using all of this before anything happens
+
+Everything above tells you where a text came from after it exists. That is useful, and
+it is also late: by the time you check, the text has been read, forwarded, acted on.
+The sixth layer moves the check to the one moment it can still change the outcome — the
+moment an AI agent is about to *do* something.
+
+Picture an assistant that reads documents and can pay invoices. Before it reads a
+document, the first five layers quietly label it: this one the owner wrote and signed;
+this one is plain human text we cannot vouch for; this one is something our own system
+wrote earlier; this one is a doctored copy of something we wrote, with a new instruction
+inside it. The assistant never gets to decide what the labels mean. A small, separate
+program — the gate — remembers the worst thing the assistant has read in this session
+and checks every action against a fixed rulebook: pay on a signed instruction, yes; pay
+on a doctored document, never; pay on a plain document, only after the owner signs off
+on that one payment. The rulebook itself is sealed, the gate signs a receipt for every
+decision, and the receipts chain together so nobody can quietly delete one.
+
+Nothing in the gate is an AI. That is deliberate. The whole point of the layer is to keep
+working on the day the AI is the thing that has gone wrong. What belongs in hardware
+(keys that cannot be copied, a program that cannot lie about which version it is, a
+receipt book that cannot be rewritten) is spelled out in `GATE.md`, and the one thing
+this software cannot stop — someone copying a key out of the computer — is reported in
+the results as a gap rather than hidden.

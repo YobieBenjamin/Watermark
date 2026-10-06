@@ -118,3 +118,26 @@ What transfers and what does not: the toy model has roughly 3.7 nats of entropy 
 **On research.** The harness is a common yardstick. A new watermark scheme is a drop-in replacement for one method (`TextGrainSampler.distribution`) and one scoring function; a new attack is one function and one line in the sweep. Watermark-stealing and detector-oracle attacks are the two notable omissions, left as extension points because they need either tens of thousands of queries or detector access, which is precisely what gating is meant to make expensive.
 
 **The bottom line.** A text watermark is a keyed bias in word choice. It is self-synchronising, so copying and reformatting preserve it; it is context-hashed, so every edit costs several positions and rewriting erases it; and it is zero-bit, so forging around it is cheap. These are properties of the whole class, not of any vendor's implementation. The durable design is not a stronger mark but a stack: a watermark for presence, retrieval for meaning, a signed registry for integrity, and calibration discipline for the verdicts. This repository is a working, reproducible instance of that stack.
+
+## Layer 6: the execution gate
+
+The forensic layers become a runtime control by moving the question from "where did
+this text come from?" to "what has entered this session, and may this session now do
+that?". Every content item returned by a read tool is labelled by the hardened detector,
+the signed registry and the retrieval index before the model sees it; the label is a
+provenance level (verified 0 · unverified 1 · self-generated 2 · tampered or
+unregistered-watermark 3) and the session's taint is the maximum so far. Every tool call
+arrives as a hash-linked chain of Ed25519 signatures — root over deployment (which pins
+the policy hash and the gate's measurement), deployment over session (which pins the
+principal), session over call — and a deterministic gate verifies the chain, rejects
+replays and out-of-order calls, evaluates a hash-pinned policy (allowlists, argument
+bounds, per-session budgets, an effect × taint matrix, thresholds on advisory signals
+from external sensors), signs and appends its decision to a hash-chained log, and only
+then executes. Irreversible actions ALLOW at level 0, HOLD at 1 (one principal signature
+over the call hash releases them), DENY at 2 and above; the matrix is arranged so that
+the failure of any single text layer degrades to HOLD, never to ALLOW. Twenty-four
+scenarios with stated expected verdicts, a side-effect ledger audited against signed
+ALLOWs, a re-verifiable log, a run behind a process boundary, and one documented gap (a
+copied software session key) make up the reference run. The hardware mapping — which
+keys, counters, measurements and log heads belong in a TPM, HSM or TEE and why the
+interfaces do not change — is in `GATE.md` §6.

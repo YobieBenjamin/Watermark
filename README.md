@@ -12,7 +12,14 @@ A one-command, self-validating reference implementation of
 4. a **signed-output registry** (Ed25519 over canonical hashes, SQLite) — the layer
    that turns "watermark present" into "this exact text / this text minus these edits",
 5. an **attack harness** that runs every attack through every layer and reports which
-   layer still identifies the source.
+   layer still identifies the source,
+6. an **execution gate** (`textgrain_ref/gate/`) — the runtime layer: every agent tool
+   call carries a signed provenance chain (root → deployment → session → call), the gate
+   verifies it *outside the model*, labels every input with layers 1–4 before the model
+   can act on it, applies a hash-pinned policy, holds irreversible actions on
+   unverifiable inputs for one principal signature, logs every decision in a
+   hash-chained signed log, and emits named signals. No step consults a model. See
+   [`docs/GATE.md`](docs/GATE.md).
 
 ```
                  generate ──► textGrain sampler ──► text ──► register (hash+sign) ──► registry.sqlite
@@ -23,6 +30,10 @@ A one-command, self-validating reference implementation of
                                      ▼
    verdicts: watermark p-value (naive vs hardened) · segment localisation
              retrieval recall@1 · registry exact / tampered (+diff) / unknown
+
+   runtime:  model ──► tool request ──► runtime (signs) ──► GATE ──► executor ──► world
+             content entering the model ◄── labelled by detector + registry + retrieval
+             chain ▸ replay ▸ taint ▸ policy ▸ advisory signals ▸ ALLOW / HOLD / DENY ▸ signed log
 ```
 
 ## Run it
@@ -31,6 +42,7 @@ A one-command, self-validating reference implementation of
 git clone https://github.com/yobiebenjamin/Watermark && cd Watermark
 ./run.sh                 # offline toy model, a few minutes on one CPU: venv, install, pytest, full sweep
 ./run.sh toy --quick     # smoke sweep, under a minute
+./run.sh gate            # layer 6: 24 runtime scenarios through the execution gate, ~20 s, offline
 ```
 
 Needs Python 3.10+ (the newest `python3.x` on `PATH` is picked automatically) and
@@ -108,6 +120,31 @@ so absolute rates are optimistic; the ordering and the layer behaviour transfer.
 `bash results/reproduce.sh` regenerates both committed runs (seeded; identical up to
 floating-point differences between machines).
 
+## What the gate shows (`./run.sh gate`, [`results/gate-reference/report.md`](results/gate-reference/report.md))
+
+The same documents, now read by an agent that is about to act on them. Before the model
+sees a document, layers 1–4 label it; the label raises the session's taint; the policy's
+taint matrix decides what a tainted session may still do (irreversible actions: ALLOW on
+a principal-signed instruction, HOLD on unverifiable text, DENY on anything that
+resembles machine output). Twenty-four scenarios, each with a stated expected verdict:
+
+| scenario | what the gate measured | verdict |
+|---|---|---|
+| principal-signed instruction → payment + email | input `verified` (level 0) | ALLOW, ALLOW |
+| payment on an unverifiable human document | `unverified` (1) | HOLD → principal approves one call hash → ALLOW |
+| injected instruction inside an edited copy of our own output | registry `tampered` (3) | DENY, nothing moved |
+| same, paraphrased (rewrite p = 0.25 / 0.5) | registry `tampered` / watermark fires unregistered | DENY; at worst HOLD, never ALLOW |
+| the model acts on its own earlier output | registry `exact` → `self_generated` (2) | email HOLD, internal write ALLOW + flag |
+| the model lies about what it read | gate measured it anyway | still DENY, `agent.claim_mismatch` |
+| bare call · forged signature · edited args · foreign root · splice · replay · expired session | chain | DENY each, named signal each |
+| policy file swapped · gate build modified | deployment link pins both hashes | DENY |
+| external sensor (a safety-project probe) at 0.85 / 0.97 | advisory threshold | HOLD / DENY |
+| attacker holds a *copy* of the session key | — | ALLOW — the documented gap; closes with a hardware key |
+
+Every side effect in the ledger is explained by a signed ALLOW; the decision log
+re-verifies after the run; the same gate runs as a separate process behind a Unix
+socket with the agent never holding its key. Tests: 17 in `tests/test_gate.py`.
+
 Documentation:
 
 * [`docs/NARRATIVE_PLAIN_ENGLISH.md`](docs/NARRATIVE_PLAIN_ENGLISH.md) — the whole project
@@ -120,6 +157,8 @@ Documentation:
   them, and which layer holds against each.
 * [`docs/USAGE.md`](docs/USAGE.md) — CLI reference, Python API, Hugging Face backend,
   how to read the report, how to extend the harness.
+* [`docs/GATE.md`](docs/GATE.md) — the execution gate: the chain, the taint matrix, the
+  runtime attacks, how a safety project's signals plug in, and what belongs in silicon.
 
 ## Repository layout
 
@@ -134,15 +173,31 @@ textgrain_ref/
   registry.py     Ed25519-signed canonical-hash registry, exact / tampered / unknown verdicts, token diffs
   attacks.py      attack library and the default sweep
   harness.py      end-to-end evaluation, report.md / report.json / plots
-  cli.py          demo · generate · detect · localize · verify · keygen
+  cli.py          demo · generate · detect · localize · verify · keygen · gate
   lm/ngram.py     offline toy trigram LM (interpolated absolute discounting)
   lm/hf.py        Hugging Face backend with KV-cached watermarked decoding + instruct helpers
+  gate/           layer 6 — the execution gate
+    crypto.py       canonical JSON, Ed25519 signer (hardware boundary marked), measurement
+    chain.py        deployment → session → call → approval links; stateless verifier
+    provenance.py   detector + registry + retrieval as the gate's input oracle; taint levels
+    policy.py       hash-pinned JSON policy: allowlists, bounds, budgets, taint matrix, advisory thresholds
+    gate.py         the gate: chain → replay → taint → advisory → policy → approval → signed log → execute
+    signals.py      31 named signals (out) and the SignalSource interface (in)
+    runtime.py      provisioner, deployment, the thin signing runtime, principal approval
+    adversary.py    envelope-level attacks (strip, forge, tamper, rogue root, splice, replay, stolen key)
+    tools.py        simulated tools and the side-effect ledger
+    service.py      the gate as a separate process behind a Unix socket
+    harness.py      world builder, 24 scenarios, report.md / report.json / signals.jsonl
 tests/test_stack.py   15 tests: PRF, OT marginals/budget, unbiasedness + entropy identity,
                       Exp(1) null (KS), FPR control, detection power, wrong key, diversity,
                       canonicalisation vs desync attacks, localisation, retrieval, registry, signatures
+tests/test_gate.py    17 tests: link hashing, every chain tamper, replay/ordering, HOLD → approval,
+                      policy bounds/budgets/taint/advisory, policy pinning, gate-side taint vs agent claims,
+                      signal sources, oracle labels, watermark-missed, runtime injection, log integrity,
+                      decision tokens, measurement, the stolen-key gap, process isolation
 data/             public-domain Austen texts for the toy LM and the human-text pool (fetch_corpus.sh)
-results/          committed reports and plots from the two reference runs (+ reproduce.sh)
-docs/             NARRATIVE_PLAIN_ENGLISH.md, NARRATIVE_TECHNICAL.md, DESIGN.md, THREAT_MODEL.md, USAGE.md
+results/          committed reports and plots from the two reference runs (+ reproduce.sh), gate-reference/
+docs/             NARRATIVE_PLAIN_ENGLISH.md, NARRATIVE_TECHNICAL.md, DESIGN.md, THREAT_MODEL.md, USAGE.md, GATE.md
 ```
 
 ## Production notes (what a reference implementation leaves out)

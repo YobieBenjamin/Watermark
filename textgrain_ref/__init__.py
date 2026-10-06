@@ -4,4 +4,4 @@ from .watermark import TextGrainConfig, TextGrainSampler, generate  # noqa: F401
 from .detector import Detector  # noqa: F401
 from .canonicalize import canonicalize  # noqa: F401
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

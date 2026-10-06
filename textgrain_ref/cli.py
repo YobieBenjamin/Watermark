@@ -8,6 +8,8 @@
     python -m textgrain_ref.cli localize  --backend toy --key-hex <64 hex> --file long_document.txt
     python -m textgrain_ref.cli verify    --out out --file suspect.txt          # registry + retrieval
     python -m textgrain_ref.cli keygen
+    python -m textgrain_ref.cli gate      --out out-gate [--no-sidecar]   # layer 6: execution-gate scenario sweep
+    python -m textgrain_ref.cli gate      --verify-log out-gate            # re-verify a run's decision log
 """
 from __future__ import annotations
 
@@ -89,7 +91,24 @@ def main(argv=None) -> int:
 
     sub.add_parser("keygen", help="print a fresh 256-bit watermark key (hex)")
 
+    gt = sub.add_parser("gate", help="run the execution-gate scenario sweep (layer 6), or --verify-log a finished run")
+    gt.add_argument("--out", default="out-gate")
+    gt.add_argument("--seed", type=int, default=7)
+    gt.add_argument("--tokens", type=int, default=300)
+    gt.add_argument("--alpha", type=float, default=0.01)
+    gt.add_argument("--no-sidecar", action="store_true", help="skip the separate-process run")
+    gt.add_argument("--verify-log", metavar="DIR", default=None)
+
     args = ap.parse_args(argv)
+
+    if args.cmd == "gate":
+        from .gate.__main__ import main as gate_main
+        argv_gate = ["--out", args.out, "--seed", str(args.seed), "--tokens", str(args.tokens), "--alpha", str(args.alpha)]
+        if args.no_sidecar:
+            argv_gate.append("--no-sidecar")
+        if args.verify_log:
+            argv_gate += ["--verify-log", args.verify_log]
+        return gate_main(argv_gate)
 
     if args.cmd == "keygen":
         print(secrets.token_hex(32))

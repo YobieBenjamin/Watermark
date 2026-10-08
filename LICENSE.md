@@ -2,8 +2,6 @@
 
 <https://polyformproject.org/licenses/noncommercial/1.0.0>
 
-Required Notice: Copyright (c) 2026 Yobie Benjamin (https://github.com/YobieBenjamin)
-
 ## Acceptance
 
 In order to get any license under these terms, you must agree

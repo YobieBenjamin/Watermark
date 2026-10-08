@@ -10,7 +10,7 @@ date-released: "2026-10-06"
 repository-code: "https://github.com/YobieBenjamin/Watermark"
 url: "https://github.com/YobieBenjamin/Watermark"
 license: PolyForm-Noncommercial-1.0.0
-license-url: "https://github.com/YobieBenjamin/safety/blob/main/LICENSE.md"
+license-url: "https://github.com/YobieBenjamin/autonomic-graph-regulation/blob/main/LICENSE.md"
 keywords:
   - "LLM watermark"
   - "textGrain"

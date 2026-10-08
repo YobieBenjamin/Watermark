@@ -1,0 +1,26 @@
+NOTICE
+
+Copyright (c) 2026 Yobie Benjamin. All rights reserved except as licensed below.
+
+This repository (https://github.com/YobieBenjamin/Watermark) is source-available, not open source.
+
+  Software (all code: *.py, *.sh, Makefile, pyproject.toml, tests/):
+    PolyForm Noncommercial License 1.0.0 — see LICENSE.md
+    Required Notice: Copyright (c) 2026 Yobie Benjamin (https://github.com/YobieBenjamin)
+
+  Documentation, data and figures (README.md, docs/, results/ (reports, plots and JSON), data/):
+    Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) — see LICENSE-DOCS.txt
+
+Attribution is required for any use of this work, in whole or in part, including
+excerpts, derived works, benchmarks, talks, papers and products. Attribution must
+include: the author's name (Yobie Benjamin), the repository URL, the version or
+commit used, and a copy of or link to this NOTICE. Cite the work using the
+repository's CITATION.cff.
+
+Commercial use of any part of this work requires a separate written license from
+the author. See LICENSING.md for scope and contact.
+
+The canonical copies of these licensing files for all of the author's repositories
+are kept at https://github.com/YobieBenjamin/safety.
+
+Third-party names: textGrain is OpenAI's; this is an independent study of the published design and is not affiliated with, sponsored by or endorsed by OpenAI.

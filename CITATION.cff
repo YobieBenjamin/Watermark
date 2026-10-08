@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this work, in whole or in part, please cite it as below. Attribution is required (see NOTICE)."
+type: software
+title: "Watermark: a study of the textGrain-style LLM watermark with a hardened detector, retrieval, signed registry and attack harness"
+authors:
+  - family-names: Benjamin
+    given-names: Yobie
+version: "0.1.0"
+date-released: "2026-10-06"
+repository-code: "https://github.com/YobieBenjamin/Watermark"
+url: "https://github.com/YobieBenjamin/Watermark"
+license: PolyForm-Noncommercial-1.0.0
+license-url: "https://github.com/YobieBenjamin/safety/blob/main/LICENSE.md"
+keywords:
+  - "LLM watermark"
+  - "textGrain"
+  - "AI provenance"
+  - "detector"
+  - "attack harness"
+  - "EU AI Act Article 50"
+abstract: "A test copy of the textGrain-style LLM watermark OpenAI described (keyed vocabulary blocks, entropy-budgeted optimal-transport coupling), a hardened detector, a semantic retrieval index, a signed-output registry, and an attack harness that measures what survives 13 attacks. Software is licensed under PolyForm Noncommercial 1.0.0; documentation, data and figures under CC BY-NC 4.0. Attribution is required; commercial use requires a separate license (see LICENSING.md)."

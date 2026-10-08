@@ -178,4 +178,12 @@ docs/             NARRATIVE_PLAIN_ENGLISH.md, NARRATIVE_TECHNICAL.md, DESIGN.md,
 * Jovanović et al. (2024) watermark stealing; Pang et al. (2024) no free lunch in LLM watermarking.
 * Altschuler, Niles-Weed, Rigollet (2017) Sinkhorn rounding; Cuturi (2013) Sinkhorn distances.
 
-MIT licensed.
+## Blog
+
+Two posts on what this study found, in [`blog/`](blog/) as Markdown and Word (CC BY-NC 4.0, see License below):
+[Why an Invisible Stamp Won't Keep AI Safe](blog/01-why-an-invisible-stamp-wont-keep-ai-safe.md) (for everyone) and
+[Inside OpenAI's Watermark: What the Study Found](blog/02-inside-openais-watermark.md) (the deep technical companion, with the code). Where the argument goes from here is in [A Multi-Layer Approach to AI Safety](https://github.com/YobieBenjamin/hardware-and-silicon/blob/main/blog/01-a-multi-layer-approach-to-ai-safety.md).
+
+## License
+
+Source-available, not open source. Copyright (c) 2026 Yobie Benjamin. Software is licensed under the PolyForm Noncommercial License 1.0.0 ([LICENSE.md](https://github.com/YobieBenjamin/safety/blob/main/LICENSE.md)); documentation, data and figures under CC BY-NC 4.0 ([LICENSE-DOCS.txt](https://github.com/YobieBenjamin/safety/blob/main/LICENSE-DOCS.txt)). Attribution is required for any use in whole or in part ([NOTICE](https://github.com/YobieBenjamin/safety/blob/main/NOTICE)); commercial use requires a separate license. See [LICENSING.md](https://github.com/YobieBenjamin/safety/blob/main/LICENSING.md) for scope and contact, and [CITATION.cff](https://github.com/YobieBenjamin/safety/blob/main/CITATION.cff) to cite this work.

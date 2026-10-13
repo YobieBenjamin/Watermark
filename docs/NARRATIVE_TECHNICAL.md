@@ -105,7 +105,14 @@ Reading the table:
 - Dilution defeats the passage-level test's intent but not localisation.
 - Piggyback spoofing defeats the watermark *by design* (the text is still "detected") and is caught by the integrity layer, which names the changed span.
 
-What transfers and what does not: the toy model has roughly 3.7 nats of entropy per token, two to three times an instruction-tuned LLM at temperature 1 with top-p, so absolute detection rates here are optimistic. OpenAI's reported 80% at 200 tokens and 17% after 25% synonym replacement are the realistic regime. The ordering of attacks, the value of canonicalisation, the behaviour of localisation, and the retrieval and registry verdicts are properties of the architecture, not of the model, and transfer directly. The HF backend exists to produce the real-model numbers.
+What transfers and what does not: the toy model has roughly 3.7 nats of entropy per token, two to three times an instruction-tuned LLM at temperature 1 with top-p, so absolute detection rates here are optimistic. OpenAI's reported 80% at 200 tokens and 17% after 25% synonym replacement are the realistic regime. The ordering of attacks, the value of canonicalisation, the behaviour of localisation, and the retrieval and registry verdicts are properties of the architecture, not of the model, and transfer directly. The HF backend exists to produce the real-model numbers, and the committed run with
+Qwen2.5-1.5B-Instruct (`results/hf-20261013-074938/`, 40 × 400 tokens) bears the
+prediction out: half the signal (z 12 against 27, 98% detection on untouched text),
+tokenizer-desync attacks that now cut the naive detector to 40–65% while canonicalisation
+holds 98%, chance-level detection once 70% of tokens are resampled, and 57% / 70%
+detection after LLM paraphrase / French round-trip translation — with the multilingual
+retrieval index attributing 100% of both. The paraphraser there is the same 1.5B model,
+so those two numbers are a floor on the damage, not a ceiling.
 
 ## 6. Impact
 

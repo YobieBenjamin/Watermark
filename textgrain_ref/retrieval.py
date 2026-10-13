@@ -92,9 +92,30 @@ class Hit:
     n_strong: int = 0       # query sentences with similarity >= 0.8 in this doc
 
 
+def load_faiss():
+    """Import faiss so it coexists with torch.
+
+    On macOS the PyPI wheels of torch and faiss-cpu each bundle their own libomp.dylib;
+    with both loaded the second OpenMP runtime aborts (Error #15) or deadlocks in the
+    first parallel region of `IndexFlat.search`.  Allowing the duplicate and keeping
+    faiss single-threaded is the documented workaround; the flat index over a few
+    thousand sentence vectors does not need the threads.
+    """
+    import os
+    import sys
+
+    if sys.platform == "darwin":
+        os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+    import faiss
+
+    if sys.platform == "darwin":
+        faiss.omp_set_num_threads(1)
+    return faiss
+
+
 class RetrievalIndex:
     def __init__(self, embedder):
-        import faiss
+        faiss = load_faiss()
 
         self.faiss = faiss
         self.embedder = embedder

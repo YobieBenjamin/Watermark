@@ -128,6 +128,14 @@ print(reg.verify(edited_text, index, {f"doc-{rec.record_id}": rec.record_id}))
   Sweep `--beta` to see the quality/detectability trade-off.
 * `tests/test_hf_backend.py` validates the decode loop with a tiny random GPT-2 and a
   locally trained tokenizer; it runs automatically once the `hf` extra is installed.
+* The device is picked automatically: CUDA, else Apple Silicon MPS (bf16), else CPU.
+  `bash results/reproduce_hf.sh` regenerates the committed real-model run
+  (`results/hf-20261013-074938/`, 45 minutes on an M4 Max) and rewrites the README's
+  real-model section from its `report.json` (`results/readme_table.py`).
+* macOS: the PyPI wheels of `torch` and `faiss-cpu` each bundle an OpenMP runtime, which
+  makes the first FAISS search abort or deadlock once both are loaded. `retrieval.load_faiss`
+  applies the documented workaround (`KMP_DUPLICATE_LIB_OK=TRUE`, single-threaded FAISS);
+  the flat index does not need the threads.
 
 ## Reading the report
 

@@ -19,6 +19,21 @@ import numpy as np
 from ..watermark import TextGrainSampler, apply_temperature_top_p
 
 
+def _allow_duplicate_openmp() -> None:
+    """macOS: torch and faiss-cpu wheels each ship a libomp.dylib (see `retrieval.load_faiss`)."""
+    import os
+    import sys
+
+    if sys.platform == "darwin":
+        os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
+
+def _normalize(p: np.ndarray) -> np.ndarray:
+    """A float32 softmax over a 150k-token vocabulary sums to 1 only to ~1e-6; numpy's sampler wants 1e-8."""
+    s = float(p.sum())
+    return p / s if s > 0 else p
+
+
 class HFLanguageModel:
     def __init__(
         self,
@@ -28,21 +43,27 @@ class HFLanguageModel:
         chat: bool = True,
         trust_remote_code: bool = False,
     ):
+        _allow_duplicate_openmp()
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         self.torch = torch
         self.tok = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=trust_remote_code)
         if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+                device = "mps"  # Apple Silicon
+            else:
+                device = "cpu"
         self.device = device
         torch_dtype = None
         if dtype:
             torch_dtype = getattr(torch, dtype)
-        elif device == "cuda":
+        elif device in ("cuda", "mps"):
             torch_dtype = torch.bfloat16
         self.model = AutoModelForCausalLM.from_pretrained(
-            model_name_or_path, torch_dtype=torch_dtype, trust_remote_code=trust_remote_code
+            model_name_or_path, dtype=torch_dtype, trust_remote_code=trust_remote_code
         ).to(device).eval()
         self._finish_init(chat)
 
@@ -84,7 +105,12 @@ class HFLanguageModel:
     def build_prompt(self, user_text: str, system: Optional[str] = None) -> list[int]:
         if self.chat:
             msgs = ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": user_text}]
-            return list(self.tok.apply_chat_template(msgs, add_generation_prompt=True, tokenize=True))
+            out = self.tok.apply_chat_template(msgs, add_generation_prompt=True, tokenize=True)
+            if hasattr(out, "keys") and "input_ids" in out:  # transformers >= 5 returns a BatchEncoding
+                out = out["input_ids"]
+                if len(out) and isinstance(out[0], (list, tuple)):
+                    out = out[0]
+            return [int(t) for t in out]
         return self.encode(user_text)
 
     # -- distributions ----------------------------------------------------------
@@ -94,7 +120,7 @@ class HFLanguageModel:
         with torch.no_grad():
             x = torch.tensor([list(ids)], device=self.device)
             logits = self.model(input_ids=x).logits[0, -1].float()
-            return torch.softmax(logits, dim=-1).cpu().numpy().astype(np.float64)
+            return _normalize(torch.softmax(logits, dim=-1).cpu().numpy().astype(np.float64))
 
     def generate(
         self,
@@ -119,11 +145,11 @@ class HFLanguageModel:
                 out = self.model(input_ids=next_input, past_key_values=past, use_cache=True)
                 past = out.past_key_values
                 logits = out.logits[0, -1].float()
-                p = torch.softmax(logits, dim=-1).cpu().numpy().astype(np.float64)
+                p = _normalize(torch.softmax(logits, dim=-1).cpu().numpy().astype(np.float64))
                 p = apply_temperature_top_p(p, temperature, top_p)
                 ctx = ids[-context_window:] if context_window > 0 else []
                 q = sampler.distribution(p, ctx)[0] if sampler is not None else p
-                tok = int(rng.choice(len(q), p=q))
+                tok = int(rng.choice(len(q), p=_normalize(q)))
                 if self.eos_id is not None and tok == self.eos_id:
                     break
                 ids.append(tok)

@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-hf = ["torch>=2.1", "transformers>=4.40", "sentence-transformers>=2.7", "accelerate>=0.30"]
+hf = ["torch>=2.1", "transformers>=4.56", "sentence-transformers>=2.7", "accelerate>=0.30"]  # >=4.56: from_pretrained(dtype=...)
 dev = ["pytest>=7"]
 
 [project.scripts]

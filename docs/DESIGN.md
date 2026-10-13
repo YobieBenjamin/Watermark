@@ -135,3 +135,14 @@ instruction-tuned LLM at temperature 1 with top-p. Absolute detection rates here
 therefore optimistic; the *ordering* of attacks, the hardening effect, the dilution
 localisation and the registry/retrieval behaviour transfer directly. Run the `hf`
 backend to get numbers for a real model.
+
+The committed real-model run (`results/hf-20261013-074938/`, Qwen2.5-1.5B-Instruct,
+40 × 400 tokens, temperature 1, top-p 1) confirms the prediction: mean z on untouched
+text halves (12.3 against 26.9) and detection is 98%; zero-width and homoglyph attacks
+now take the naive detector to 40% and 65% while canonicalisation restores 98%;
+resampling 70% of tokens is chance; LLM paraphrase and French round-trip translation
+(the two attacks the toy backend cannot run) leave 57% and 70% detection at z ≈ 3.5,
+and the multilingual retrieval index finds the source for 100% of them. The null is
+conservative on real text (0 of 80 false positives at α = 0.01; empirical 1% point on
+−log10 p at 1.42 against the analytic 2.0). The attacker in those two rows is the same
+1.5B model, so they are a floor on the damage a paraphrase does, not a ceiling.

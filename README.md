@@ -36,7 +36,8 @@ git clone https://github.com/yobiebenjamin/Watermark && cd Watermark
 Needs Python 3.10+ (the newest `python3.x` on `PATH` is picked automatically) and
 network access to PyPI on first run. No model download, no GPU, no API key.
 
-With a real model (GPU recommended; models download from Hugging Face on first run):
+With a real model (CUDA or Apple Silicon MPS is picked automatically; models download
+from Hugging Face on first run; the committed run below took 45 minutes on an M4 Max):
 
 ```bash
 ./run.sh hf --model Qwen/Qwen2.5-1.5B-Instruct \
@@ -104,9 +105,71 @@ Read the table as the threat model:
   is caught by the registry, which returns `tampered` with the differing spans.
 
 The toy model has ~3.7 nats/token of entropy, two to three times a real instruct LLM,
-so absolute rates are optimistic; the ordering and the layer behaviour transfer.
+so absolute rates are optimistic; the ordering and the layer behaviour transfer. The
+real-model run below checks that claim.
 `bash results/reproduce.sh` regenerates both committed runs (seeded; identical up to
 floating-point differences between machines).
+
+<!-- hf-table:start -->
+## What the harness shows (real model: Qwen2.5-1.5B-Instruct, 40 × 400 tokens, α = 0.01, β = 0.5)
+
+Full report: [`results/hf-20261013-074938/report.md`](results/hf-20261013-074938/report.md). Model `Qwen/Qwen2.5-1.5B-Instruct` on Apple Silicon (MPS, bf16), temperature 1, top-p 1; embedder `paraphrase-multilingual-MiniLM-L12-v2`; the two LLM-driven attacks use the same model, unwatermarked, as the attacker. Runtime 45 min on an M4 Max. `bash results/reproduce_hf.sh` regenerates it.
+
+| attack | tokens changed | TPR naive | TPR hardened | mean z naive | mean z hardened | retrieval R@1 | registry exact / tampered / unknown | stack attributed |
+|---|---|---|---|---|---|---|---|---|
+| identity (copy-paste) | 0% | 98% | 98% | 13.0 | 12.3 | 100% | 100 / 0 / 0 | 100% |
+| word_autoformat | 0% | 98% | 98% | 12.4 | 12.3 | 100% | 100 / 0 / 0 | 100% |
+| zero_width p=0.5 | 0% | 40% | 98% | 1.8 | 12.3 | 100% | 100 / 0 / 0 | 100% |
+| homoglyph p=0.3 | 0% | 65% | 98% | 3.2 | 12.3 | 100% | 100 / 0 / 0 | 100% |
+| rewrite p=0.10 | 11% | 98% | 98% | 8.6 | 8.1 | 100% | 0 / 100 / 0 | 100% |
+| rewrite p=0.25 | 31% | 85% | 85% | 4.2 | 4.1 | 100% | 0 / 100 / 0 | 100% |
+| rewrite p=0.50 | 70% | 5% | 5% | 0.8 | 0.6 | 98% | 0 / 100 / 0 | 100% |
+| delete p=0.10 | 14% | 98% | 98% | 8.6 | 8.2 | 100% | 0 / 100 / 0 | 100% |
+| insert p=0.10 | 11% | 98% | 98% | 8.8 | 8.3 | 100% | 0 / 100 / 0 | 100% |
+| truncate 150 tok | 48% | 95% | 95% | 7.8 | 7.4 | 100% | 10 / 90 / 0 | 100% |
+| truncate 80 tok | 70% | 88% | 85% | 5.0 | 4.9 | 100% | 2 / 98 / 0 | 100% |
+| dilute 3× human | 55% | 95% | 95% | 8.6 | 8.1 | 95% | 0 / 95 / 5 | 98% (localisation IoU 0.73, found 95%) |
+| piggyback k=3 (spoof) | 2% | 98% | 98% | 12.5 | 11.8 | 100% | 0 / 100 / 0 | 100% |
+| paraphrase_llm | 53% | 60% | 57% | 3.7 | 3.6 | 100% | 0 / 100 / 0 | 100% |
+| translate_roundtrip fr | 44% | 72% | 70% | 3.5 | 3.3 | 100% | 2 / 98 / 0 | 100% |
+
+Null calibration on 80 passages (40 human, 40 unwatermarked model): analytic FPR 0.0% at α = 1% (naive 0.0%); registry says `unknown` for 100% of human text. Same prompt + same key gives distinct outputs 100% of the time. Achieved entropy budget 0.450 of a requested 0.5; 4.2% of positions masked as repeated contexts.
+
+![which layer identifies the source](results/hf-20261013-074938/tpr.png)
+![signal strength per attack](results/hf-20261013-074938/zscore.png)
+<!-- hf-table:end -->
+
+Read it against the toy table:
+
+* **Half the signal.** A real instruct model at temperature 1 has far less entropy
+  than the toy LM: mean z on untouched text is 12 instead of 27, and 98% rather than
+  100% of 400-token outputs clear α = 0.01 (4.2% of positions are masked as repeated
+  contexts, three times the toy rate — real text repeats itself). The null is cleaner
+  than the model assumes: none of the 80 unwatermarked passages crossed the threshold,
+  and the empirical 1% point on −log10 p (1.42) sits below the analytic one (2.0), so
+  the Gamma test is conservative on real text.
+* **Tokenizer-desync attacks now bite.** With half the signal, zero-width and homoglyph
+  insertion take the naive detector to 40% and 65% (z 1.8 and 3.2) with no visible
+  change to the text; canonicalisation restores 98%. On the toy model they only dented z.
+* **The rewrite curve is steeper.** Resampling 11% of tokens costs a third of the signal
+  (z 12 → 8), 31% brings detection down to 85%, 70% is chance (5%). Retrieval still
+  finds 98% of the sources and the registry returns `tampered`.
+* **The two attacks that matter take the watermark to 57% and 70%.** LLM paraphrase and
+  the French round trip change about half the tokens and leave z ≈ 3.5 — and the
+  attacker here is the same 1.5B model rewriting its own output; a stronger paraphraser
+  will do more damage. The multilingual retrieval index finds the source 100% of the
+  time in both cases and the registry returns `tampered` with the diff, so the stack
+  still attributes every sample — but every one of those attributions rests on the
+  provider having kept an index of everything it generated. That is the layer map the
+  toy run predicted, now measured.
+* **Dilution and spoofing behave as before.** Localisation finds the watermarked span in
+  95% of diluted documents (IoU 0.73); one of 40 escaped retrieval. A 3-token piggyback
+  edit is still "detected" at z 11.8 and is caught by the registry 100% of the time.
+
+`bash results/reproduce_hf.sh` regenerates the run and this section
+(`results/readme_table.py` renders the table from `report.json`). The committed run
+used `temperature 1.0`, `top-p 1.0`; sweep `--beta` and `--top-p` to move along the
+quality/detectability trade-off.
 
 Documentation:
 
@@ -141,7 +204,9 @@ tests/test_stack.py   15 tests: PRF, OT marginals/budget, unbiasedness + entropy
                       Exp(1) null (KS), FPR control, detection power, wrong key, diversity,
                       canonicalisation vs desync attacks, localisation, retrieval, registry, signatures
 data/             public-domain Austen texts for the toy LM and the human-text pool (fetch_corpus.sh)
-results/          committed reports and plots from the two reference runs (+ reproduce.sh)
+results/          committed reports and plots from the three reference runs
+                  (toy β=0.5, toy β=0.2, Qwen2.5-1.5B-Instruct) + reproduce.sh, reproduce_hf.sh,
+                  readme_table.py (renders the README table from a run's report.json)
 docs/             NARRATIVE_PLAIN_ENGLISH.md, NARRATIVE_TECHNICAL.md, DESIGN.md, THREAT_MODEL.md, USAGE.md
 ```
 

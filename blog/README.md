@@ -7,6 +7,6 @@
 
 Code excerpts in the technical post link to the exact lines at commit [`71119df`](https://github.com/YobieBenjamin/Watermark/tree/71119df). Where the argument goes next is [A Multi-Layer Approach to AI Safety](https://github.com/YobieBenjamin/hardware-and-silicon/blob/main/blog/01-a-multi-layer-approach-to-ai-safety.md) in the hardware-and-silicon repository.
 
-The Word files are generated from the Markdown with `pandoc`, then saved once through LibreOffice so they validate cleanly in Word.
+The Word files are generated from the Markdown with `pandoc`, then saved once through LibreOffice so they validate cleanly in Word: `bash blog/build.sh` (or `make blog`) rebuilds them after an edit. Both posts were updated on 13 October 2026 with the real-model run (`results/hf-20261013-074938/`).
 
 The posts are documentation and are licensed under CC BY-NC 4.0 ([LICENSE-DOCS.txt](https://github.com/YobieBenjamin/autonomic-graph-regulation/blob/main/LICENSE-DOCS.txt)); the code they quote is under the PolyForm Noncommercial License 1.0.0 ([LICENSE.md](https://github.com/YobieBenjamin/autonomic-graph-regulation/blob/main/LICENSE.md)). Attribution is required for any use in whole or in part ([NOTICE](https://github.com/YobieBenjamin/autonomic-graph-regulation/blob/main/NOTICE)); commercial use requires a separate license ([LICENSING.md](https://github.com/YobieBenjamin/autonomic-graph-regulation/blob/main/LICENSING.md)).

@@ -1,6 +1,6 @@
 # Why an Invisible Stamp Won't Keep AI Safe
 
-*Yobie Benjamin · 7 October 2026*
+*Yobie Benjamin · 7 October 2026 · updated 13 October 2026*
 
 OpenAI just gave its AI an invisible stamp. It is clever, and it works. It is not safety. Here is what the stamp does, what it can't do, and where safety has to come from.
 
@@ -21,6 +21,8 @@ We set up a test copy of the design OpenAI published this month and attacked it 
 Copy and paste the text? Caught every time. Hide invisible characters in it, or swap in look-alike letters? Caught every time. Cut the text in half? Still caught.
 
 Rewrite half the words? Caught about one time in five.
+
+That was with a small stand-in model. We then ran the same attacks on a real AI model, the kind that runs on a laptop. The stamp got fainter. Copying still got caught 98 times in 100. But ask another AI to reword the text and the stamp survived only about half the time; translate it to French and back, about two times in three; rewrite half the words and it was caught one time in twenty.
 
 That is the honest picture. The stamp is good. It is not magic. Stamps rub off, and nothing in this business is 100 percent.
 

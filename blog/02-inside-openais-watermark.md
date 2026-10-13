@@ -1,10 +1,10 @@
 # Inside OpenAI's Watermark: What the Study Found
 
-*Yobie Benjamin · 7 October 2026*
+*Yobie Benjamin · 7 October 2026 · updated 13 October 2026 with the real-model run*
 
 This is the technical companion to [Why an Invisible Stamp Won't Keep AI Safe](01-why-an-invisible-stamp-wont-keep-ai-safe.md). It stays in plain words, but it goes all the way down: how OpenAI's textGrain watermark actually works, how our test copy of it is built, what 13 attacks did to it, and what that tells us about where AI safety has to live. Every number comes from code you can run in one command, and every code excerpt links to the exact lines on GitHub.
 
-- The study: [github.com/YobieBenjamin/Watermark](https://github.com/YobieBenjamin/Watermark) (commit `71119df`)
+- The study: [github.com/YobieBenjamin/Watermark](https://github.com/YobieBenjamin/Watermark) (code excerpts at commit `71119df`; the real-model run at `0892ac3`)
 - OpenAI's design: *textGrain: Entropy-Calibrated Watermarking for Language Model Text*, technical report (Li, Wen, Chen, Long, Jain, Joly, Lam, Song, Su), 5 October 2026
 
 One thing to be clear about up front: OpenAI built the watermark. We did not. We built a test copy of the published design so we could attack it in the open, with numbers anyone can check, and then we wrote down what survived.
@@ -271,6 +271,8 @@ Four things to read off the table.
 
 The offline runs use a small n-gram model with about 3.7 nats of entropy per token, two to three times what an instruction-tuned LLM has at temperature 1 with top-p. More entropy means more room for the watermark, so the absolute detection rates here are optimistic. What transfers directly: the ordering of the attacks, the hardening effect, the dilution localization, and the registry and retrieval behavior. The harness has an `hf` backend for real models, and two attacks that only exist there: paraphrase by an unwatermarked instruct model, and a round trip through a pivot language.
 
+We ran it. With Qwen2.5-1.5B-Instruct on a laptop, 40 samples of 400 tokens at temperature 1, the same model unwatermarked as the attacker ([results/hf-20261013-074938](https://github.com/YobieBenjamin/Watermark/blob/0892ac3/results/hf-20261013-074938/report.md), 45 minutes, `bash results/reproduce_hf.sh`), the signal halves: z 12 on untouched text instead of 27, 98 percent detected, and no false positives in 80 unwatermarked passages. The formatting attacks now matter: zero-width characters take the naive detector to 40 percent and look-alike letters to 65; canonicalization brings both back to 98. Rewriting 70 percent of the words is noise (5 percent). The two attacks the toy model cannot run are the ones that count: a paraphrase by the unmarked model leaves 57 percent detection and a round trip through French 70, both at z ≈ 3.5, and that paraphraser is a 1.5-billion-parameter model rewriting its own output, so those numbers are a floor on the damage, not a ceiling. Retrieval found the source in 100 percent of both. The ordering held; the margins are what the toy run said they would be, only thinner.
+
 Two things the study deliberately does not implement are watermark stealing and detector hill-climbing. Both need either tens of thousands of queries or oracle access to the detector, which is exactly why a detector has to be gated, rate-limited and logged. The hooks to study them are there.
 
 ## Why a watermark is limited by design
@@ -280,7 +282,7 @@ None of the limits below are bugs. They follow from what a watermark is.
 1. **Only the key holder can check.** OpenAI can check OpenAI's text. No one else can, and OpenAI cannot check anyone else's.
 2. **It is applied while the text is written, inside the provider's sampler.** A model running on someone else's machine applies no tilt unless its owner chooses to. Owners who want to hide have no reason to choose to.
 3. **Open weights carry no stamp.** Thousands of models are free to download. Many have had their safety training stripped out on purpose by "abliteration": find the direction in activation space that encodes refusal, subtract it from the weights, done in an afternoon on a consumer GPU. Those models are unmarked and unmarkable.
-4. **A paraphrase by any unmarked model erases it.** The attacker never needs the key. Our 50-percent rewrite is a crude version of that attack and already pushes detection to noise.
+4. **A paraphrase by any unmarked model erases it.** The attacker never needs the key. Our paraphrase row is that attack with a small paraphraser, and the stamp survived it only 57 percent of the time; rewrite half the words and it is noise.
 
 So a watermark answers one narrow question: did this provider's model write these exact words, unchanged? That is provenance. It is useful for attribution and for the EU AI Act's Article 50 duty to make AI text detectable. It is irrelevant to the question people are actually afraid of: can this model take an action it shouldn't?
 
@@ -303,8 +305,10 @@ That is the subject of the next post, [A Multi-Layer Approach to AI Safety](http
 git clone https://github.com/YobieBenjamin/Watermark
 # offline toy model: venv, tests, full sweep
 cd Watermark && ./run.sh
-# regenerates both committed runs
+# regenerates both committed toy runs
 bash results/reproduce.sh
+# regenerates the committed real-model run (Apple Silicon, CUDA or CPU; about an hour)
+bash results/reproduce_hf.sh
 ./run.sh hf --model Qwen/Qwen2.5-1.5B-Instruct \
   --embedder paraphrase-multilingual-MiniLM-L12-v2 --llm-attacks
 ```

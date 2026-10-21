@@ -5,11 +5,11 @@ Copyright (c) 2026 Yobie Benjamin. All rights reserved except as licensed below.
 This repository (https://github.com/YobieBenjamin/Watermark) is source-available, not open source.
 
   Software (all code: *.py, *.sh, Makefile, pyproject.toml, tests/):
-    PolyForm Noncommercial License 1.0.0 — see LICENSE.md
+    PolyForm Noncommercial License 1.0.0 (see LICENSE.md)
     Required Notice: Copyright (c) 2026 Yobie Benjamin (https://github.com/YobieBenjamin)
 
   Documentation, data and figures (README.md, docs/, results/ (reports, plots and JSON), data/):
-    Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) — see LICENSE-DOCS.txt
+    Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) (see LICENSE-DOCS.txt)
 
 Attribution is required for any use of this work, in whole or in part, including
 excerpts, derived works, benchmarks, talks, papers and products. Attribution must

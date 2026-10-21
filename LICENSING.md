@@ -24,13 +24,13 @@ with the repository's `CITATION.cff` (GitHub renders it as an APA or BibTeX entr
 
 ## Commercial use
 
-Commercial use of any part of this work — including use inside a product or service, use by or on behalf of a
+Commercial use of any part of this work, including use inside a product or service, use by or on behalf of a
 for-profit company in its business, paid consulting built on it, and training or evaluating commercial models
-with it — requires a separate written license from the author.
+with it, requires a separate written license from the author.
 
 ## Contact
 
-Yobie Benjamin — via GitHub: https://github.com/YobieBenjamin (open an issue on the repository, or use the
+Yobie Benjamin, via GitHub: https://github.com/YobieBenjamin (open an issue on the repository, or use the
 contact details on that profile).
 
 ## Scope notes

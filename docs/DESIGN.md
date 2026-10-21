@@ -1,7 +1,7 @@
 # Design notes
 
-This document explains what each module computes and why, in enough detail to audit
-the implementation against OpenAI's textGrain technical report (Li, Wen, Chen, Long,
+What each module computes and why, in enough detail that you can audit my
+implementation against OpenAI's textGrain technical report (Li, Wen, Chen, Long,
 Jain, Joly, Lam, Song, Su; 5 October 2026) and the surrounding literature.
 
 ## 1. Embedding (`textgrain_ref/watermark.py`, `ot.py`, `prf.py`)

@@ -20,7 +20,7 @@ The hard part is doing that without making the text worse. Earlier schemes (the 
 ## The five keyed ingredients
 
 Everything the watermark needs at a given position is computed from two things: the secret key and the last few tokens of context (we use a window of 3). The code derives three seeds from them with HMAC-SHA256 and expands each seed into what it needs with a fast random-access mixer.
-([prf.py, lines 72–82](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/prf.py#L72-L82))
+([prf.py, lines 72 to 82](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/prf.py#L72-L82))
 
 ```python
 def seeds(self, context: Sequence[int]) -> Seeds:
@@ -43,7 +43,7 @@ From those seeds come the five ingredients:
 5. **A repeat mask.** If the same 3-token window shows up twice in one response, the second occurrence is sampled with no watermark at all. The detector mirrors this and scores only first occurrences. That removes a classic way to inflate or spoof a score with repeated phrases.
 
 Random access is what makes this practical. The detector doesn't rebuild the whole table; it recomputes the one block a word fell in and the one cell it needs.
-([prf.py, lines 84–122](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/prf.py#L84-L122))
+([prf.py, lines 84 to 122](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/prf.py#L84-L122))
 
 ```python
 @staticmethod
@@ -83,7 +83,7 @@ Now the key fact. The KL penalty is not just a convenient regularizer. It equals
 ```
 
 the fraction of the model's uncertainty at this position that the watermark is allowed to consume. β = 0 means no watermark. β = 1 would mean the model's choice is fully determined by the key, which is what the older Gumbel-max scheme (Aaronson, 2023) does at every position. The solver adjusts λ until the achieved fraction lands within a tolerance of the requested β.
-([ot.py, lines 65–127](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/ot.py#L65-L127))
+([ot.py, lines 65 to 127](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/ot.py#L65-L127))
 
 ```python
 # caps from the information bound (Theorem A.4)
@@ -108,7 +108,7 @@ for s in range(n_iter):
 Two caps appear on the first line. You cannot remove more entropy than the blocks carry, and you cannot signal more than log(m) nats through a choice among m columns. Both come from the report's information bound.
 
 Once π is solved, the sampler reads off the column J it secretly drew, scales every block by how much column J prefers it, and scales each word inside a block by the same factor as its block. Then it samples.
-([watermark.py, lines 64–102](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/watermark.py#L64-L102))
+([watermark.py, lines 64 to 102](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/watermark.py#L64-L102))
 
 ```python
 b, m = self.cfg.n_blocks, self.cfg.n_columns
@@ -140,7 +140,7 @@ And one more consequence worth noticing: the watermark does not make the model d
 ## Detection
 
 The detector needs the key and the tokenizer. It does not need the model, and it does not need to know the budget. For every scored position it recomputes the seeds from the context window, finds which block the observed word fell in, finds the secret column, pulls the one uniform random number behind that cell of the cost table, and converts it to a score.
-([detector.py, lines 97–131](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/detector.py#L97-L131))
+([detector.py, lines 97 to 131](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/detector.py#L97-L131))
 
 ```python
 for t in range(L, len(ids)):
@@ -172,7 +172,7 @@ The report warns that a fixed deployed key needs empirical calibration, and our 
 ## Hardening: two things a real detector needs
 
 **Clean up before counting.** Attackers can change the bytes of a text without changing what a reader sees: insert zero-width characters, swap in look-alike letters from Cyrillic or Greek, or just let a word processor convert quotes and dashes. Each of those shifts every downstream context window, and the keyed values stop lining up. Canonicalizing the text first makes all of them no-ops. The registry hashes canonicalized text for the same reason.
-([canonicalize.py, lines 69–77](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/canonicalize.py#L69-L77))
+([canonicalize.py, lines 69 to 77](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/canonicalize.py#L69-L77))
 
 ```python
 def canonicalize(text: str) -> str:
@@ -187,7 +187,7 @@ def canonicalize(text: str) -> str:
 ```
 
 **Find the stamped part.** Paste two watermarked paragraphs into a long human essay and the passage-level statistic looks normal. The localizer slides a 120-token window in steps of 30, tests each window with the same Gamma null, corrects for the number of windows (Bonferroni), merges the windows that fire, and maps them back to character positions.
-([detector.py, lines 137–183](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/detector.py#L137-L183))
+([detector.py, lines 137 to 183](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/detector.py#L137-L183))
 
 ```python
 for st in starts:
@@ -207,10 +207,10 @@ In the dilution attack below (one watermarked passage buried in three times as m
 A token-level watermark provably cannot survive a good paraphrase (Zhang et al., 2024, *Watermarks in the Sand*; Krishna et al., 2023). So the study adds the two things a provider would deploy around the detector.
 
 **Semantic retrieval.** Every registered output is split into sentences, embedded, and stored in a FAISS inner-product index. A query embeds the suspect text's sentences and scores each candidate document by the mean of its best per-sentence similarities, plus coverage and a count of near-identical sentences so diluted documents still resolve. Offline, the harness uses a character n-gram hashing embedder (lexical overlap only); the real thing uses a multilingual sentence encoder, selectable with `--embedder`.
-([retrieval.py, lines 95–140](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/retrieval.py#L95-L140))
+([retrieval.py, lines 95 to 140](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/retrieval.py#L95-L140))
 
 **A signed registry.** `register(text)` stores the SHA-256 of the canonicalized text with an Ed25519 signature over the hash, the model name and a timestamp. `verify(text)` returns one of three verdicts: exact, tampered (with the diff), or unknown.
-([registry.py, lines 148–170](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/registry.py#L148-L170))
+([registry.py, lines 148 to 170](https://github.com/YobieBenjamin/Watermark/blob/71119df/textgrain_ref/registry.py#L148-L170))
 
 ```python
 def verify(self, text, index=None, doc_to_record=None,
@@ -297,7 +297,7 @@ The study ends with a design decision that points past watermarks. The watermark
 
 and hands it to something below the model that *does* decide. In our architecture that something is a control plane rooted in silicon: a gate on the only path from the model to the outside world, which opens for an outgoing action only when a signed rulebook allows it, when the chip has proved what it is running, and when the witnesses the rule demands (a provenance verdict, an observer's verdict) have signed off. A watermark verdict is one witness among several. The lock is the chip.
 
-That is the subject of the next post, [A Multi-Layer Approach to AI Safety](https://github.com/YobieBenjamin/hardware-and-silicon/blob/main/blog/01-a-multi-layer-approach-to-ai-safety.md), and of the repository it lives in, [hardware-and-silicon](https://github.com/YobieBenjamin/hardware-and-silicon), which is built to sit on NVIDIA's platform, because that is where the models run. The one after that is the comprehensive silicon design.
+That is the subject of the next post, [A Multi-Layer Approach to AI Safety](https://github.com/YobieBenjamin/hardware-and-silicon/blob/main/blog/01-a-multi-layer-approach-to-ai-safety.md), and of the repository it lives in, [hardware-and-silicon](https://github.com/YobieBenjamin/hardware-and-silicon), which is built to sit on NVIDIA's platform, because that is where the models run. The one after that is the full silicon design.
 
 ## Run it yourself
 

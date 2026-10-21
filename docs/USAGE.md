@@ -21,7 +21,7 @@ pip install -e ".[hf]"        # torch, transformers, sentence-transformers, acce
 All commands are available as `textgrain-ref <cmd>` inside the venv or as
 `python -m textgrain_ref.cli <cmd>`.
 
-### `demo` — run the evaluation harness
+### `demo`: run the evaluation harness
 
 ```
 textgrain-ref demo [--backend toy|hf] [--model NAME] [--embedder NAME]
@@ -62,7 +62,7 @@ the α-threshold and the decision. `localize` prints significant segments with t
 and character spans and the segment text. Watermark parameters (`--beta` is not needed
 for detection; `--blocks`, `--columns`, `--context-window` are) must match generation.
 
-### `verify` — registry + retrieval verdict
+### `verify`: registry and retrieval verdict
 
 ```bash
 textgrain-ref verify --out results/toy-20261006-120000 --file suspect.txt
@@ -139,16 +139,16 @@ print(reg.verify(edited_text, index, {f"doc-{rec.record_id}": rec.record_id}))
 
 ## Reading the report
 
-* **TPR naive vs hardened** — same detector with canonicalisation off/on. A gap means
+* **TPR naive vs hardened**: same detector with canonicalisation off/on. A gap means
   the attack was a tokenizer-desync attack.
-* **mean z** — `(S_n − n)/√n`; 2.33 is the α = 1 % line for large n. Watch z rather than
+* **mean z**: `(S_n − n)/√n`; 2.33 is the α = 1 % line for large n. Watch z rather than
   TPR when TPR saturates.
-* **TPR (emp. thr)** — recall at the empirical null threshold; with a small null set this
+* **TPR (emp. thr)**: recall at the empirical null threshold; with a small null set this
   threshold is dominated by its single largest value, so prefer large `--n`.
-* **retrieval R@1** — the attacked text's nearest registered document is its source.
-* **registry exact/tampered/unknown** — integrity verdicts; `tampered` comes with spans.
-* **stack attributed** — any layer identified the source.
-* **localization** — for the dilution attack: IoU between the true watermarked span and
+* **retrieval R@1**: the attacked text's nearest registered document is its source.
+* **registry exact/tampered/unknown**: integrity verdicts; `tampered` comes with spans.
+* **stack attributed**: any layer identified the source.
+* **localization**: for the dilution attack: IoU between the true watermarked span and
   the detector's segments, and how often a segment overlapped the truth by > 30 %.
 
 ## Extending

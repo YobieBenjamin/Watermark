@@ -149,7 +149,11 @@ class Registry:
                similarity_threshold: float = 0.5) -> Verdict:
         rec = self.lookup_exact(text)
         if rec is not None:
-            return Verdict("exact", rec.record_id, 1.0, self.verify_signature(rec), 0.0, [])
+            # "exact" means the same bytes that were registered. Text that only canonicalizes to the registered text
+            # (zero-width characters removed, homoglyphs folded, spacing changed) is reported as "normalized": the
+            # same words, different bytes, which can carry a hidden payload (adversarial audit 2026-10-26).
+            status = "exact" if text == rec.text else "normalized"
+            return Verdict(status, rec.record_id, 1.0, self.verify_signature(rec), 0.0, [])
         if index is None:
             return Verdict("unknown")
         hits = index.query(text, k=1)

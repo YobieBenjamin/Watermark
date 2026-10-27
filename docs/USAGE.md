@@ -155,7 +155,7 @@ print(reg.verify(edited_text, index, {f"doc-{rec.record_id}": rec.record_id}))
 
 * Add an attack: write `def my_attack(text, ctx: AttackContext, **params) -> AttackResult`
   in `attacks.py` and append an `AttackSpec` to `default_sweep`.
-* Add a backend: implement the four-method interface above (see `lm/ngram.py`).
+* Add a backend: implement the four-method interface above (see `textgrain_ref/lm/ngram.py`).
 * Change the scheme: `TextGrainSampler.distribution` is the only place that knows about
   block OT; a green-list or Gumbel-max sampler is a drop-in replacement, and the
   detector's `position_scores` is the only place that knows how to score.

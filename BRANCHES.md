@@ -66,8 +66,9 @@ Existing branches keep their names.
 
 ## How work reaches `main`
 
-1. Work on a branch, on any machine. Push the branch to GitHub. Commit as the person or agent that did the work, with
-   the agent named in a `Co-Authored-By` line.
+1. Work on a branch, on any machine. Push the branch to GitHub. Commit as Yobie Benjamin, who directs the work and
+   decides what reaches `main`. Commits and pull requests carry no AI co-author or AI session lines; which agent ran a
+   step is kept in that run's own log under `overnight/` on the Mac mini.
 2. Before opening a pull request, the branch passes the same checks the merge requires, run locally (each repository's
    tests; in safety-governor also `python -m govsim.redteam`, `python -m rtl.conformance` and `python -m rtl.formal`).
 3. Open a pull request into `main` with a description of what changed and the evidence (test counts, verdicts, the
